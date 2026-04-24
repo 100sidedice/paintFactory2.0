@@ -1,3 +1,19 @@
 {
-    
+    "color":{
+        "path": "Assets/color.png",
+        "type": "image",
+        "extra": ""
+    },
+    "machines-image": {"path": "Assets/conveyor.png", "type": "image", "extra": ""},
+    "machines":{
+        "path": "Assets/conveyor.png",
+        "type": "spriteSheet",
+        "extra": {
+            "sliceSize": [16,16],
+            "rows":[
+                {"name":"conveyor", "fps": 8, "collisionInsets":{"top":0, "bottom":0, "left":1, "right":1}},
+                {"name":"conveyor-corner", "fps": 8}
+            ]
+        }
+    }
 }

@@ -55,9 +55,26 @@ export async function preloadFolder(path, type='image') {
 export async function preloadModule(path) {
     return import(path);
 }
-/** Converts a path to a dot path */
-export function pathToDot(path) {
-    path = path.slice(2, path.length); // Remove leading ./
-    return path.replace(/\//g, '.').replace(/\.\w+$/, '');
+/** Preloads a Tiled tilemap (JSON/tmx-lite). Loads referenced tileset images. */
+export async function preloadTilemap(path) {
+    const map = await preloadJSON(path);
+    if (!map) return map;
+    if (Array.isArray(map.tilesets)) {
+        for (const ts of map.tilesets) {
+            if (ts.image) {
+                // Resolve image path relative to the map file
+                let imgPath;
+                try {
+                    imgPath = new URL(ts.image, path).toString();
+                } catch (e) {
+                    // Fallback: join manually
+                    const base = path.replace(/\/[^/]*$/, '/');
+                    imgPath = base + ts.image.replace(/^\.\//, '');
+                }
+                ts._image = await preloadImage(imgPath);
+                ts._imagePath = imgPath;
+            }
+        }
+    }
+    return map;
 }
-

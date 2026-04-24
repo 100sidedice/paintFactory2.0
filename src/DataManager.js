@@ -1,16 +1,19 @@
+import { getByPath, setByPath, removeByPath } from './helpers/pathHelpers.js';
+
 export default class DataManager {
     constructor(configJson) {
         this.config = configJson; //loaded from AssetManager
         this.data = {};
     }
     getData(path){
-        return this.data[path];
+        if (!path) return this.data;
+        return getByPath(this.data, path);
     }
     setData(path, value){
-        this.data[path] = value;
+        setByPath(this.data, path, value, true);
     }
     removeData(path){
-        delete this.data[path];
+        removeByPath(this.data, path);
     }
     saveData(filename = 'saveData.json', token = 'saveData') {
         const data = this.getData(token);

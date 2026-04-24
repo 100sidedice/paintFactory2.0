@@ -1,4 +1,5 @@
-import { pathToDot, preloadAudio, preloadFolder, preloadImage, preloadModule, preloadJSON } from "./helpers/preload.js";
+import { preloadAudio, preloadFolder, preloadImage, preloadModule, preloadJSON, preloadTilemap } from "./helpers/preload.js";
+import { pathToDot, getByPath, setByPath, removeByPath } from "./helpers/pathHelpers.js";
 
 /** Manages loading and storing of game assets */
 export default class AssetManager {
@@ -41,6 +42,9 @@ export default class AssetManager {
             case 'module':
                 result = await preloadModule(path);
                 break;
+            case 'tilemap':
+                result = await preloadTilemap(path);
+                break;
             default:
                 throw new Error(`Unsupported asset type: ${type}`);
         }
@@ -52,13 +56,14 @@ export default class AssetManager {
     }
     /** Get an asset by its path */
     get(path){
-        return this.assets[path];
+        if (!path) return this.assets;
+        return getByPath(this.assets, path);
     }
     /** Set an asset by its path */
-    set(path, asset){
-        this.assets[path] = asset;
+    set(path, asset, replace = true){
+        setByPath(this.assets, path, asset, replace);
     }
     remove (path){
-        delete this.assets[path];
+        removeByPath(this.assets, path);
     }
 }
