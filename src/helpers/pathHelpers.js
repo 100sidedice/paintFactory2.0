@@ -1,9 +1,7 @@
 /** Helpers for working with dot-separated object paths */
 export function pathToDot(path) {
     if (typeof path !== 'string') return '';
-    // normalize leading ./ or / so paths become consistent for storage and lookup
-    path = path.replace(/^\.\//, '');
-    path = path.replace(/^\//, '');
+    if (path.startsWith('./')) path = path.slice(2);
     return path.replace(/\//g, '.').replace(/\.\w+$/, '');
 }
 

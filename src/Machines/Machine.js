@@ -6,7 +6,7 @@ export default class Machine {
     }
     draw(ctx){
         ctx.fillStyle = 'red';
-        ctx.drawRect(this.data.x * 16, this.data.y * 16, 16, 16);
+        ctx.fillRect(this.data.x * 16, this.data.y * 16, 16, 16);
     }
     update(delta){
 
