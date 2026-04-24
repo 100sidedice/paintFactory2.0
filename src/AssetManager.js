@@ -15,12 +15,13 @@ export default class AssetManager {
     async preload() {
         await this.quickLoad('./Data/config.json', true, 'json', null);
         await this.quickLoad(this.get('Data.config')["assetsPath"], true, 'json', null, (data) => {
-            for (const asset of data) {
+            for (const [key, asset] of Object.entries(data)) {
                 this.addPath(asset.path, asset.type, asset.extra);
             }
         });
         for (const { path, type , extra} of this.toPreload) {
             await this.quickLoad(path, true, type, extra);
+            document.getElementById('debug').textContent += `Hola`;
         }
     }
     /** Quick-load an asset */

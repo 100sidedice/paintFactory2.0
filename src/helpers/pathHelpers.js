@@ -1,7 +1,9 @@
 /** Helpers for working with dot-separated object paths */
 export function pathToDot(path) {
     if (typeof path !== 'string') return '';
-    if (path.startsWith('./')) path = path.slice(2);
+    // normalize leading ./ or / so paths become consistent for storage and lookup
+    path = path.replace(/^\.\//, '');
+    path = path.replace(/^\//, '');
     return path.replace(/\//g, '.').replace(/\.\w+$/, '');
 }
 
@@ -45,4 +47,8 @@ export function removeByPath(obj, path) {
         if (typeof cur !== 'object' || cur === null) return;
     }
     delete cur[parts[parts.length - 1]];
+}
+
+export function joinDots(...parts) {
+    return parts.filter(p => p).join('.').replace(/\.\w+$/, '');
 }

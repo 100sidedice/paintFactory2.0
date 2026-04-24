@@ -45,6 +45,9 @@ export async function preloadFolder(path, type='image') {
             case 'audio':
                 assets[file] = await preloadAudio(assetPath);
                 break;
+            case 'module':
+                assets[file] = await preloadModule(assetPath);
+                break;
             default:
                 throw new Error(`Unsupported asset type: ${type}`);
         }
