@@ -1,8 +1,114 @@
 body {
-    background-color: #111111
+    background-color: #111111;
+    margin: 0;
+    padding: 0;
 }
 canvas {
-    display: fixed;
+    position: fixed;
     top: 0px;
-    left: 0px;
+    left:50%;
+    transform: translateX(-50%);
+    z-index: 1;
+    /* keep pointer events so canvas still receives input where it is visible */
+    pointer-events: auto;
+    image-rendering: pixelated;
+}
+#machine_sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 14.3vh;
+    height: 100vh; /* Viewport height */
+    overflow-y: none; /* Adds scrollbar only when needed */
+    background-color: #1b1b1b;
+    pointer-events: auto;
+    touch-action: auto;
+    cursor:pointer;
+
+    z-index: 10;
+}
+.machine {
+    --border_color: #00000066;
+    border: 3px solid var(--border_color);
+    padding: 3.8px;
+    width: 13vh;
+    height: 13vh;
+    z-index: 11;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.1s ease-out border-color;
+}
+.machine:hover {
+    border-color: #FFFF00;
+}
+.machine:active {
+    border-color: #666600;
+    cursor: grabbing;
+}
+.machine-icon:hover {
+    transform: scale(1.2);
+}
+
+/* sidebar-only canvas overrides: scope to the sidebar so global canvas rules stay intact */
+#machine_sidebar .machine-icon {
+    position: static;
+    transform: rotate(var(--rot-anim, var(--rot, 0deg)));
+    left: auto;
+    top: auto;
+    display: block;
+    margin: 0 auto;
+    width: 70%;
+    height: 70%;
+    max-width: 100%;
+    max-height: 100%;
+    image-rendering: pixelated;
+    transition: transform 0.3s ease;
+}
+
+/* scale icon when the containing slot is hovered (so hovering padding/border counts) */
+#machine_sidebar .machine:hover .machine-icon {
+    transform: rotate(var(--rot-anim, var(--rot, 0deg))) scale(1.2);
+}
+
+/* When a slot is depleted, reduce hover scale slightly to 1.1 to indicate limited interaction */
+#machine_sidebar .machine.depleted:hover .machine-icon {
+    transform: rotate(var(--rot-anim, var(--rot, 0deg))) scale(1.05);
+}
+
+/* variant indicator (small line of squares at the bottom center of a slot) */
+#machine_sidebar .variant-indicator {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    pointer-events: none; /* allow clicks to pass through to slot/icon */
+}
+
+#machine_sidebar .variant-dot {
+    width: 10px;
+    height: 10px;
+    background: #666; /* gray */
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+}
+
+#machine_sidebar .variant-dot.active {
+    background: #00FFFF; /* cyan for selected */
+}
+
+/* small count badge in top-left of slot */
+#machine_sidebar .machine-count {
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    color: white;
+    z-index: 20;
+    pointer-events: none;
+    text-shadow: 0 0 2px rgba(0,0,0,0.8);
 }

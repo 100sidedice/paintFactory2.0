@@ -12,6 +12,8 @@
  * @returns {void}
  * @example drawTile(ctx, tilesheetImg, 32, 1, 2, 100, 50, Math.PI/2, 1);
  */
+import { hexToRgba, rgbaToHexInt, mixHexInt } from './colorHelpers.js';
+
 export function drawTile(ctx, image, slicePx, tileX, tileY, destX = 0, destY = 0, rotation = 0, scale = 1) {
     const sx = tileX * slicePx;
     const sy = tileY * slicePx;
@@ -28,6 +30,58 @@ export function drawTile(ctx, image, slicePx, tileX, tileY, destX = 0, destY = 0
     ctx.drawImage(image, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
     ctx.restore();
 }
+
+/**
+ * Recolor a mask tile (replace pixels matching `maskColor` with `newColor`),
+ * then overlay a base tile on top and return the resulting canvas.
+ * All colors are int-32 hex (0xRRGGBB or 0xRRGGBBAA).
+ * @param {CanvasImageSource} image - Source tilesheet image
+ * @param {number} sliceSize - Tile size in pixels (assumes square tiles)
+ * @param {[number,number]} baseImg - [tileX, tileY] of the base image frame
+ * @param {[number,number]} maskImg - [tileX, tileY] of the mask frame
+ * @param {number} newColor - New color for mask (int hex)
+ * @param {number} maskColor - Color in mask to replace (int hex)
+ * @returns {HTMLCanvasElement} canvas containing the composed result
+ */
+export function composeMaskedFrame(image, sliceSize, baseImg, maskImg, newColor, maskColor) {
+    const s = sliceSize || 16;
+    const canvas = document.createElement('canvas');
+    canvas.width = s; canvas.height = s;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    const newC = hexToRgba(newColor);
+    const maskC = hexToRgba(maskColor);
+
+    // draw mask frame first
+    const mx = (maskImg && maskImg[0])|0;
+    const my = (maskImg && maskImg[1])|0;
+    ctx.clearRect(0,0,s,s);
+    ctx.drawImage(image, mx*s, my*s, s, s, 0, 0, s, s);
+
+    // replace maskColor -> newColor in image data
+    try {
+        const id = ctx.getImageData(0,0,s,s);
+        const data = id.data;
+        for (let i=0;i<data.length;i+=4) {
+            if (data[i] === maskC[0] && data[i+1] === maskC[1] && data[i+2] === maskC[2] && data[i+3] === maskC[3]) {
+                data[i] = newC[0]; data[i+1] = newC[1]; data[i+2] = newC[2]; data[i+3] = newC[3];
+            }
+        }
+        ctx.putImageData(id,0,0);
+    } catch (e) {
+        // getImageData may fail for cross-origin images; fall back to drawing without recolor
+        console.warn('composeMaskedFrame: getImageData failed, returning base overlay without recolor', e);
+    }
+
+    // draw base frame on top
+    const bx = (baseImg && baseImg[0])|0;
+    const by = (baseImg && baseImg[1])|0;
+    ctx.drawImage(image, bx*s, by*s, s, s, 0, 0, s, s);
+
+    return canvas;
+}
+
 
 // alias for clarity
 export const drawSlice = drawTile;
@@ -84,7 +138,6 @@ export function drawTilemap(ctx, map, destX = 0, destY = 0, scale = 1) {
                 const sy = Math.floor(localId / cols) * tinfo.tilewidth;
                 const dx = destX + x * tileW * scale;
                 const dy = destY + y * tileH * scale;
-
                 // draw directly using drawImage for performance
                 const dw = Math.round(tinfo.tilewidth * scale);
                 const dh = Math.round(tinfo.tileheight * scale);

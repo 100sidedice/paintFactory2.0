@@ -1,3 +1,12 @@
 {
-    "assetsPath": "./assets.json"   
+    "assetsPath": "./Data/assets.json",
+    "saveData": "saveData.json",
+    "defaultSaveData": {
+        "money": 0,
+        "upgrades": {
+            "conveyor": {"speed": 1, "capacity": 1},
+            "spawner": {"spawnRate": 1, "mulit": 1}
+        },
+        "level": 1
+    }
 }

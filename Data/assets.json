@@ -1,0 +1,43 @@
+{
+    "color":{
+        "path": "Assets/color.png",
+        "type": "image",
+        "extra": "",
+        "name": "color"
+    },
+    "machines-image": {"path": "Assets/machines.png", "type": "image", "extra": "", "name": "machines-image"},
+    "Machines":{
+        "path": "Machines",
+        "name": "Machines",
+        "type": "module-folder",
+        "extra": {
+            "Machine": {"name": "Machine"},
+            "conveyor": {"name": "conveyor"},
+            "spawner": {"name": "spawner"},
+            "conveyor-left": {"name": "conveyor-left"},
+            "conveyor-right": {"name": "conveyor-right"},
+            "seller": {"name": "seller"}
+        }
+    },
+    "machineData": {
+        "path": "Data/machines.json",
+        "name": "machineData",
+        "type": "json",
+        "extra": {}
+    },
+    "delete": {
+        "path": "Assets/delete.png",
+        "name": "delete",
+        "type": "image",
+        "extra": ""
+    },
+    "Levels":{
+        "path": "Data/Levels",
+        "name": "Levels",
+        "type": "folder",
+        "extra": {
+            "level1": {"name": "level1"},
+            "level2": {"name": "level2"}
+        }
+    }
+}

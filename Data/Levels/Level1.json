@@ -1,0 +1,26 @@
+{  
+    "Header": "Level 1: Simple Start",
+    "Description": "Spawn & sell 5  dye",
+    "Hints": [
+        "Click a machine in the sidebar to select it, then click on the grid to place it",
+        "Right click a machine in the sidebar to see it's description",
+        "Make a path from the spawner to the goal using conveyor belts"
+    ],
+    "Placed": {
+        "10.4": "seller"
+    },
+    "Goal": {
+        "#FFFFFFFF": 5
+    },
+    "Machines":[
+        ["delete", 1],
+        ["spawner", 1],
+        ["conveyor", 20],
+        ["conveyor-left", 5],
+        ["conveyor-right", 5],
+        ["seller", 1]
+    ],
+    "spawner-items": [
+        {"color": "#FFFFFFFF"}
+    ]
+}

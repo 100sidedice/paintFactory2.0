@@ -48,5 +48,12 @@ export function removeByPath(obj, path) {
 }
 
 export function joinDots(...parts) {
-    return parts.filter(p => p).join('.').replace(/\.\w+$/, '');
+    let result = '';
+    for (const part of parts) {
+        if (!part) continue;
+        result += part
+        result += "."
+    }
+    if (result.endsWith('.')) result = result.slice(0, -1);
+    return result;
 }

@@ -1,5 +1,0 @@
-class BackgroundManager {
-    constructor(){
-
-    }
-}
