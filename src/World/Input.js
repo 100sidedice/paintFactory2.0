@@ -8,6 +8,8 @@ export default class Input {
         this.mousePos = { x: 0, y: 0 };
         this.touches = new Map(); // id -> { id, x, y, touch }
         this.disabledClasses = new Set(); // classes currently disabled (skip their handlers)
+        // map className -> { timeoutId?, intervalId? }
+        this._disabledTimers = new Map();
         this.attachEvents();
     }
 
@@ -70,22 +72,91 @@ export default class Input {
     }
 
     // disable handlers by class name (they will be skipped until enabled)
-    disableClass(className) {
+    // New signature: disableClass(className, conditionType = 'timed', conditionData = 0)
+    // - if conditionType === 'timed', conditionData is timeoutMs (milliseconds). 0 means stay disabled until enabled.
+    // - if conditionType === 'function', conditionData is a function (sync or async) that should return truthy when the class may be re-enabled.
+    disableClass(className, conditionType = 'timed', conditionData = 0) {
         if (!className) return;
         this.disabledClasses.add(className);
+        // clear any existing timers/intervals for this class
+        const prev = this._disabledTimers.get(className);
+        if (prev) {
+            if (prev.timeoutId) clearTimeout(prev.timeoutId);
+            if (prev.intervalId) clearInterval(prev.intervalId);
+            this._disabledTimers.delete(className);
+        }
+
+        if (conditionType === 'timed') {
+            const timeoutMs = Number(conditionData) || 0;
+            if (timeoutMs <= 0) return; // stay disabled until explicitly enabled
+            const id = setTimeout(() => {
+                this.enableClass(className);
+                if (this._disabledTimers.has(className)) this._disabledTimers.delete(className);
+            }, timeoutMs);
+            this._disabledTimers.set(className, { timeoutId: id });
+            return;
+        }
+
+        if (conditionType === 'function') {
+            const fn = conditionData;
+            if (typeof fn !== 'function') return;
+            // helper to start polling
+            const startPolling = () => {
+                const interval = setInterval(async () => {
+                    try {
+                        const res = await fn();
+                        if (res) {
+                            clearInterval(interval);
+                            if (this._disabledTimers.has(className)) this._disabledTimers.delete(className);
+                            this.enableClass(className);
+                        }
+                    } catch (e) {
+                        // ignore errors from user-provided fn
+                    }
+                }, 100);
+                this._disabledTimers.set(className, { intervalId: interval });
+            };
+
+            try {
+                const res = fn();
+                if (res && typeof res.then === 'function') {
+                    // async result
+                    res.then((val) => {
+                        if (val) this.enableClass(className);
+                        else startPolling();
+                    }).catch(() => { startPolling(); });
+                } else if (res) {
+                    this.enableClass(className);
+                } else {
+                    startPolling();
+                }
+            } catch (e) {
+                // if the function throws, leave disabled with no timer
+            }
+            return;
+        }
+
+        // unknown conditionType -> do nothing further (remain disabled)
     }
 
     // enable handlers by class name
     enableClass(className) {
         if (!className) return;
+        // clear any pending timers/intervals
+        const prev = this._disabledTimers.get(className);
+        if (prev) {
+            if (prev.timeoutId) clearTimeout(prev.timeoutId);
+            if (prev.intervalId) clearInterval(prev.intervalId);
+            this._disabledTimers.delete(className);
+        }
         this.disabledClasses.delete(className);
     }
 
     // toggle class disabled state
     toggleClass(className) {
         if (!className) return;
-        if (this.disabledClasses.has(className)) this.disabledClasses.delete(className);
-        else this.disabledClasses.add(className);
+        if (this.disabledClasses.has(className)) this.enableClass(className);
+        else this.disableClass(className, 'timed', 0);
     }
     attachEvents() {
         // track mouse position for getPos()

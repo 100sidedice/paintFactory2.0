@@ -12,6 +12,7 @@ export default class spawner extends MachineBase {
         this.color = machineData.color || 0xFFFFFF; // default to white if no color provided
     }
     update(delta) {
+        super.update(delta);
         this._acc += delta;
         if (this._acc >= this.spawnInterval) {
             this._acc -= this.spawnInterval;
@@ -30,18 +31,5 @@ export default class spawner extends MachineBase {
             const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
             applyMovement(true, item, speed, this.data.rot);
         }
-    }
-    draw(ctx, x, y, size=16) {
-        const img = this.manager?.AssetManager?.get('machines-image');
-        if (!img) super.draw(ctx, x, y, size);
-
-        const row = (this.data.texture?.row ?? 0);
-        const tw = 16; const th = 16;
-        const cols = Math.max(1, Math.floor(img.width / tw));
-        const tileIndex = row * cols; // assume one-tile-per-row layout
-        const sx = 1 * tw;
-        const sy = Math.floor(tileIndex / cols) * th;
-        // draw centered similar to base Machine
-        ctx.drawImage(img, sx, sy, tw, th, x*size - size/2, y*size - size/2, size, size);
     }
 }

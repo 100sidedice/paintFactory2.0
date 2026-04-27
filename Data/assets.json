@@ -6,6 +6,7 @@
         "name": "color"
     },
     "machines-image": {"path": "Assets/machines.png", "type": "image", "extra": "", "name": "machines-image"},
+    "machines-image-grayed": {"path": "Assets/machines-grayed.png", "type": "image", "extra": "", "name": "machines-image-grayed"},
     "Machines":{
         "path": "Machines",
         "name": "Machines",

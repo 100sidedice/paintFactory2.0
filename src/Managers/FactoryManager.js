@@ -1,9 +1,10 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
 
 export default class FactoryManager {
-    constructor(DataManager, AssetManager) {
+    constructor(DataManager, AssetManager, ParticleManager) {
         this.DataManager = DataManager;
         this.AssetManager = AssetManager;
+        this.ParticleManager = ParticleManager;
         this.grid = this.generateGrid();
         this.items = {}
         this.drawQueue = this.generateQueue();
@@ -66,7 +67,20 @@ export default class FactoryManager {
             item.draw(ctx, size);
         }
     }
+    pause() {
+        this.paused = true;
+        this.ParticleManager.spawnAt(window.innerWidth/2, window.innerHeight/2, { count: 200, colors: ['#333333', '#222222'], size: 50, speed: 3750, life: 2000, gravityStrength: 0, speedNoise: 1000 , accel: 0.999, accelNoise:0});
+    }
+    unpause() {
+        this.paused = false;
+        this.ParticleManager.spawnAt(window.innerWidth/2, window.innerHeight/2, { count: 200, colors: ['#77000066', '#77770066', '#00770066', '#00777766', '#00007766'], size: 50, speed: 3750, life: 2000, gravityStrength: 0, speedNoise: 1000 , accel: 0.999, accelNoise:0});
+    }
+    toggle() {
+        if(this.paused) this.unpause();
+        else this.pause();
+    }
     update(delta){
+        if (this.paused) return;
         for (let i = 0; i < this.grid.length; i++) {
             for (let j = 0; j < this.grid[i].length; j++) {
                 const machine = this.grid[i][j];
@@ -105,6 +119,11 @@ export default class FactoryManager {
         machine.data.y = y;
         this.grid[x][y] = machine;
         this.generateQueue()
+    }
+
+    getMachine(x,y) {
+        if (!this.grid || !this.grid[x] || !this.grid[x][y]) return null;
+        return this.grid[x][y];
     }
 
     // Return neighbors for a grid cell. Result keys: top,right,bottom,left.

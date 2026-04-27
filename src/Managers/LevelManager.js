@@ -10,6 +10,8 @@ export default class LevelManager {
         this.sidebar = document.getElementById('machine_sidebar');
         this.slots = [];
         this.selectedIndex = -1;
+        this.lastRotate = performance.now();
+        this._lastTap = { time: 0, x: -1, y: -1 };
     }
 
     async init(levelKey = null) {
@@ -106,6 +108,8 @@ export default class LevelManager {
 
         // wheel on the icon rotates the preview (only affects this slot)
         icon.addEventListener('wheel', (e) => {
+            if (performance.now() - this.lastRotate < 150) return; // throttle to prevent excessive rotations from fast scrolls
+            this.lastRotate = performance.now();
             e.preventDefault();
             const deltaY = e.deltaY;
             const delta = deltaY > 0 ? 90 : -90;
@@ -251,7 +255,11 @@ export default class LevelManager {
         const icon = slot.querySelector('canvas.machine-icon');
         const count = this._getSlotRemaining(slot);
         if (countEl) {
-            countEl.textContent = String(count);
+            if(slot.dataset.machineType !== 'delete') {
+                countEl.textContent = String(count);
+            }else{
+                countEl.textContent = "(:";
+            }
             countEl.style.color = (count <= 0) ? 'red' : 'white';
         }
         if (icon) {
@@ -270,8 +278,6 @@ export default class LevelManager {
             else slot.style.setProperty('--border_color', '#00FF00FF');
         }
     }
-
-    // _consumeFromSlot removed: counts are computed dynamically from the world grid.
 
     // Public helper for external code (e.g., script.js) to query how many placements remain for a slot
     getSlotRemaining(index) {
@@ -351,6 +357,60 @@ export default class LevelManager {
         }
     }
 
+    _handleDoubleTap(gridX, gridY) {
+        if (!this.factoryManager) return;
+        const machine = this.factoryManager.getMachine(gridX, gridY);
+        if (!machine) return;
+        const type = machine.name || (machine.data && machine.data.type) || null;
+        if (!type) return;
+        const base = type.split('-')[0];
+
+        // find the slot that contains variants for this base
+        for (let i = 0; i < this.slots.length; i++) {
+            const slot = this.slots[i];
+            let variants = [];
+            try { variants = JSON.parse(slot.dataset.variants || '[]'); } catch (e) { variants = []; }
+            // skip slots that don't match the base
+            if (!variants.some(v => v.split('-')[0] === base)) continue;
+
+            // find current index in variants (fallback to 0)
+            let cur = variants.indexOf(type);
+            if (cur === -1) cur = 0;
+
+            // try next variants cyclically; only swap if the player can place the new variant
+            for (let t = 1; t <= variants.length; t++) {
+                const nextIdx = (cur + t) % variants.length;
+                const newType = variants[nextIdx];
+                if (newType === type) continue;
+                // allowed if there is at least one remaining placement for newType
+                if (this._getRemainingCount(newType) <= 0) continue;
+
+                // perform swap: preserve rotation
+                const rot = (machine.data && machine.data.rot) || 0;
+                // remove old machine then add new one at same coords
+                this.factoryManager.removeMachine(gridX, gridY);
+                this.factoryManager.addMachine(newType, gridX, gridY, rot);
+
+                // update UI counts for the affected slot
+                this._updateSlotCountDisplay(slot);
+                // Also update any sidebar slot that lists the old type specifically (safe to refresh all)
+                for (let s = 0; s < this.slots.length; s++) this._updateSlotCountDisplay(this.slots[s]);
+
+                // spawn a small particle effect to indicate swap if available
+                if (this.particleManager) {
+                    const size = window.innerHeight / 9;
+                    const cx = gridX * size + size / 2;
+                    const cy = gridY * size + size / 2;
+                    this.particleManager.spawnAt(cx, cy, { count: 8, colors: ['#00FFFF', '#FFA500'], size: 4, speed: 300, life: 500 });
+                }
+                return;
+            }
+
+            // no available variant to swap to
+            return;
+        }
+    }
+
     setSelection(index) {
         if (index < 0 || index >= this.slots.length) return;
         if (this.selectedIndex === index) return;
@@ -426,7 +486,39 @@ export default class LevelManager {
                     }
                 }
             }
-        });
+        }, ["world-edit"]);
+
+        // Left mouse press: detect double-tap to swap variant on existing machine
+        this.input.addBinding('mouse', 'left', 'press', () => {
+            if (!this.factoryManager) return;
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            if (gridX < 0 || gridY < 0) return;
+            const now = performance.now();
+            const threshold = 350; // ms for double-tap
+            if (this._lastTap && (now - this._lastTap.time) <= threshold && this._lastTap.x === gridX && this._lastTap.y === gridY) {
+                // double-tap detected
+                this._handleDoubleTap(gridX, gridY);
+                this._lastTap.time = 0; // reset to prevent triple-tap being detected as another double-tap
+                // disable world-edit until the mouse moves from the current position
+                const startX = pos.x;
+                const startY = pos.y;
+                const moveThreshold = 4; // pixels
+                this.input.disableClass('world-edit', 'function', () => {
+                    const cur = this.input.mousePos;
+                    if (!cur) return false;
+                    const dx = Math.abs(cur.x - startX);
+                    const dy = Math.abs(cur.y - startY);
+                    return (dx > moveThreshold) || (dy > moveThreshold);
+                }); // prevent click->held from also triggering placement until cursor moves
+                return;
+            } else {
+                this._lastTap.time = now;
+                this._lastTap.x = gridX;
+                this._lastTap.y = gridY;
+            }
+        }, [], 1);
 
         // Middle click: copy machine at cursor into selection (type + rotation)
         this.input.addBinding('mouse', 'middle', 'held', () => {
@@ -517,27 +609,30 @@ export default class LevelManager {
                     this.particleManager.spawnAt(cx, cy, { count: 10, colors: ['#FFC800', '#494949'], size: 10, speed: 300, life: 700 });
                 } catch (e) {}
             }
-        }, ["delete"]);
+        }, ["delete", "world-edit"]);
 
         // Wheel to rotate selected machine
         this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
+            if(performance.now() - this.lastRotate < 200) return; // throttle to prevent excessive rotations from fast scrolls
+            this.lastRotate = performance.now();
             if (!this.factoryManager) return;
             const gridPos = this.input.getPos();
             const gridX = Math.floor(gridPos.x / window.innerHeight * 9);
             const gridY = Math.floor(gridPos.y / window.innerHeight * 9);
-            this.factoryManager.setMachineProperty(gridX, gridY, 'rot',
-                (this.factoryManager.getMachineProperty(gridX, gridY, 'rot') + 90) % 360
-            );
-        });
+            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            const cur = this.factoryManager.getMachineProperty(gridX, gridY, 'rot') || 0;
+            const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
+            this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
+            this.factoryManager.getMachine(gridX, gridY)?.rotate(rotateAmount);
+        }, []);
 
         // Key R to reset factory
         this.input.addBinding('keyboard', 'KeyR', 'press', () => {
             if (!this.factoryManager) return;
             this.factoryManager.resetFactory();
         });
-    }
-
-    destroy() {
-        // Input unbinding not implemented; rely on Input lifecycle or page unload
+        this.input.addBinding('keyboard', 'Space', 'press', () => {
+            this.factoryManager.toggle();
+        });
     }
 }

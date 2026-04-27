@@ -35,9 +35,8 @@ class Program {
         // Get canvas and context
         this.canvas = document.getElementById('Draw');
         this.ctx = this.canvas.getContext('2d');
-
-        this.FactoryManager = new FactoryManager(this.dataManager, this.assetManager);
-        this.ParticleManager = new ParticleManager();
+        this.ParticleManager = new ParticleManager(this.assetManager);
+        this.FactoryManager = new FactoryManager(this.dataManager, this.assetManager, this.ParticleManager);
         // Initialize LevelManager which will wire input bindings for selection and placing/removing machines
         this.LevelManager = new LevelManager(this.assetManager, this.input, this.FactoryManager, this.dataManager, this.ParticleManager);
         this.LevelManager.init("level1");
@@ -75,7 +74,7 @@ class Program {
         // Draw factory and machines
         this.FactoryManager.draw(this.ctx);
         // Draw particle effects above factory
-        if (this.ParticleManager) this.ParticleManager.draw(this.ctx);
+        this.ParticleManager.draw(this.ctx);
 
         // cursor & placement preview
         const pos = this.input.getPos();

@@ -3,18 +3,60 @@ export default class Machine {
         this.name = name;
         this.manager = manager;
         this.data = machineData;
+        this.rotating = 0;
+        this.startRotate = 0;
+        this.rotateDuration = 200; // ms for a 90 degree rotation
+        this.extraRotation = 0;
     }
-    draw(ctx, x, y, size=16){
-        ctx.fillStyle = 'red';
-        ctx.fillRect(x*size -size/2, y*size -size/2, size, size);
-        ctx.fillStyle = 'white';
-        ctx.fillRect(x*size -size/8, y*size -size/2, size/4, size/4);
+    rotate(degrees) {
+        this.startRotate = performance.now();
+        // Determine rotation direction from the sign of `degrees` (positive -> clockwise, negative -> counter-clockwise)
+        this.extraRotation = 0;
+        if (degrees < 0) { this.rotating = -1; }
+        else if (degrees > 0) { this.rotating = 1; }
+    }
+    draw(ctx, x, y, size=16) {
+        if (this.manager.paused) {
+            var img = this.manager?.AssetManager?.get('machines-image-grayed');
+        }else {
+            var img = this.manager?.AssetManager?.get('machines-image');
+        }
+        if (!img) super.draw(ctx, x, y, size);
 
-
+        const row = (this.data.texture.row);
+        const tw = 16; const th = 16;
+        let cols = Math.max(1, Math.floor(img.width / tw));
+        if (this.manager.paused) cols = 1; // prevent animation when paused by forcing tile index to 0, since `tileIndex = row * cols` and row is always 0 or positive
+        const tileIndex = row * cols; // assume one-tile-per-row layout
+        const sx = Math.floor((performance.now() * this.data.texture.fps)/1000 % cols) * tw;
+        const sy = Math.floor(tileIndex / cols) * th;
+        // draw centered similar to base Machine
+        if(!this.rotating){
+            ctx.drawImage(img, sx, sy, tw, th, x*size - size/2, y*size - size/2, size, size);
+        } else {
+            ctx.save();
+            ctx.translate(x*size, y*size);
+            // Apply an animated counter-rotation while the global canvas has already been rotated
+            // by `machine.data.rot` in FactoryManager. `extraRotation` is in degrees, so convert to radians.
+            if(this.data.rot === 0 && this.rotating === -1) {
+                ctx.rotate((this.extraRotation - this.rotating * Math.PI/2)+2*Math.PI);
+            } else {
+                ctx.rotate((this.extraRotation - this.rotating * Math.PI/2));
+            }
+            ctx.drawImage(img, sx, sy, tw, th, -size/2, -size/2, size, size);
+            ctx.restore();
+        }
     }
     update(delta){
-
-
+        if (this.rotating) {
+            const elapsed = performance.now() - this.startRotate;
+            this.extraRotation = (elapsed / this.rotateDuration) * Math.PI/2 * this.rotating;
+            if (elapsed >= this.rotateDuration) {
+                this.rotating = 0;
+                this.extraRotation = 0;
+                this.manager.generateQueue(); // regenerate draw queue to update machine order based on new rotation
+            }
+        }
     }
     // Called when an item occupies this machine's cell. `size` is pixels per cell.
     onItemCollision(item, size) {
