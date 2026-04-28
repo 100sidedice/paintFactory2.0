@@ -18,11 +18,14 @@
         ["conveyor", 20],
         ["conveyor-left", 5],
         ["conveyor-right", 5],
+        ["conveyor-merge", 5],
         ["mixer", 5],
         ["seller", 1]
     ],
     "spawner-items": [
         {"color": "#000000FF", "count": 5},
-        {"color": "#FF0000FF", "count": 5}
+        {"color": "#FF0000FF", "count": 5},
+        {"color": "#0000FFFF", "count": 5},
+        {"color": "#00FF00FF", "count": 5}
     ]
 }

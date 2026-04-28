@@ -112,7 +112,9 @@ export default class FactoryManager {
         if (!machineData) {console.log(`Machine data for type ${type} not found`); return;}
         // Deep-clone machineData so instances don't share the same object
         const machine = new machineClass(type, structuredClone(machineData), this);
-        machine.data.rot = rot;
+        // Normalize rotation to a number (0,90,180,270)
+        const normalizedRot = (((parseInt(rot, 10) || 0) % 360) + 360) % 360;
+        machine.data.rot = normalizedRot;
         machine.data.x = x;
         machine.data.y = y;
         this.grid[x][y] = machine;
@@ -153,7 +155,13 @@ export default class FactoryManager {
     setMachineProperty(x,y,prop,value) {
         const machine = this.grid[x][y];
         if (!machine) return;
-        machine.data[prop] = value;
+        // Ensure rotation property is always stored as a normalized number
+        if (prop === 'rot') {
+            const normalized = (((parseInt(value, 10) || 0) % 360) + 360) % 360;
+            machine.data[prop] = normalized;
+        } else {
+            machine.data[prop] = value;
+        }
         this.generateQueue(); // Regenerate draw queue if properties affect drawing (like rotation)
     }
     getMachineProperty(x,y,prop) {

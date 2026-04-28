@@ -47,6 +47,9 @@ export default class Machine {
             ctx.restore();
         }
     }
+    updateRotation(delta) {
+        
+    }
     update(delta){
         if (this.rotating) {
             const elapsed = performance.now() - this.startRotate;

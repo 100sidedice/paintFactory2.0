@@ -55,6 +55,23 @@
         },
         "texture": {"row": 2, "fps": 8, "info":"Moves items upward by default"}
     },
+    "conveyor-merge": {
+        "name": "Conveyor Merge",
+        "description": "Merges items from different directions",
+        "collision-up": {
+            "top":7,
+            "bottom":0,
+            "left":7,
+            "right":7
+        },
+        "collision-right": {
+            "top":7,
+            "bottom":7,
+            "left":0,
+            "right":0
+        },
+        "texture": {"row": 5, "fps": 8, "info":"Moves items upward+left to the right"}
+    },
     "spawner": {
         "name": "Item Spawner",
         "description": "Spawns items at regular intervals",

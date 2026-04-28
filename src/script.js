@@ -46,7 +46,6 @@ class Program {
         this.LevelManager = new LevelManager(this.assetManager, this.input, this.FactoryManager, this.dataManager, this.ParticleManager);
         this.LevelManager.init("level1");
         this.FactoryManager.addMachine('conveyor', 4,3, 0);
-        this.FactoryManager.removeMachine(4,3);
         // Start the main loop
         requestAnimationFrame(this.loop.bind(this));        
     }

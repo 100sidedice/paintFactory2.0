@@ -440,7 +440,7 @@ export default class SidebarManager {
                 const newType = variants[nextIdx];
                 if (newType === type) continue;
                 if (this._getRemainingCount(newType) <= 0) continue;
-                const rot = (machine.data && machine.data.rot) ?? 0;
+                const rot = parseInt((machine.data && machine.data.rot) ?? 0, 10) || 0;
                 this.factoryManager.removeMachine(gridX, gridY);
                 this.factoryManager.addMachine(newType, gridX, gridY, rot);
                 this._updateSlotCountDisplay(slot);
@@ -516,7 +516,7 @@ export default class SidebarManager {
             if (type.split('-')[0] === 'spawner') {
                 if (this._getSpawnerRemaining(slot.dataset.spawnerColor) <= 0) return;
             }
-            const placed = this.factoryManager.addMachine(type, gridX, gridY, slot.dataset.rot);
+            const placed = this.factoryManager.addMachine(type, gridX, gridY, parseInt(slot.dataset.rot ?? '0', 10) || 0);
             if (type.split('-')[0] === 'spawner') {
                 placed.data = placed.data || {};
                 const n = intHex(slot.dataset.spawnerColor);
@@ -631,7 +631,8 @@ export default class SidebarManager {
             const gridX = Math.floor(gridPos.x / window.innerHeight * 9);
             const gridY = Math.floor(gridPos.y / window.innerHeight * 9);
             const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
-            const cur = this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0;
+            const cur = parseInt(this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0, 10) || 0;
+            console.log(`Rotate at ${gridX},${gridY}`);
             const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
             this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
             this.factoryManager.getMachine(gridX, gridY)?.rotate(rotateAmount);
