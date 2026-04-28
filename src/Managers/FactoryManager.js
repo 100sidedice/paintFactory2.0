@@ -1,13 +1,24 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
 
 export default class FactoryManager {
-    constructor(DataManager, AssetManager, ParticleManager) {
+    constructor(DataManager, AssetManager, ParticleManager, input) {
         this.DataManager = DataManager;
         this.AssetManager = AssetManager;
         this.ParticleManager = ParticleManager;
+        this.input = input;
         this.grid = this.generateGrid();
         this.items = {}
         this.drawQueue = this.generateQueue();
+
+        this.selectedCells = new Set(); // Store selected cells as "x,y" strings for easy add/remove/check
+        // test
+        this.selectedCells.add("2,3");
+        this.selectMode = 'add'; // or 'remove' for toggling selection
+        // if paste, we'll have some special logic
+        this.pasting = false;
+        this.clipboard = null; // for copy/paste functionality, can store { type, data } or similar structure
+        this.paused = false;
+        this.clipPos = { x: 0, y: 0 }; // for tracking mouse position clipboard origin
     }
     generateGrid(x=16, y=16) {
         this.grid = [];
@@ -65,6 +76,73 @@ export default class FactoryManager {
             // item coordinates are in grid space where (x,y) => pixel = x*size, y*size
             item.draw(ctx, size);
         }
+        this.drawSelected(ctx);
+        if(this.clipboard && this.pasting) {
+            this.pastePreview(ctx, this.input.getPos());
+        }
+    }
+    drawSelected(ctx) {
+        const size = window.innerHeight / 9;
+        ctx.save();
+        ctx.strokeStyle = 'cyan';
+        ctx.lineWidth = size/32;
+        for (const cell of this.selectedCells) {
+            const [x, y] = cell.split(',').map(Number);
+            ctx.strokeRect(x*size, y*size, size, size);
+            ctx.strokeRect(x*size, y*size, size/4, size/4);
+        }
+        ctx.restore();
+    }
+    select(x, y, mode="add") {
+        const key = `${x},${y}`;
+        if (mode === "add") {
+            this.selectedCells.add(key);
+        } else if (mode === "remove") {
+            this.selectedCells.delete(key);
+        }
+    }
+    clearSelection() {
+        this.selectedCells.clear();
+    }
+    copySelection(screenPos) {
+        if (this.selectedCells.size === 0) return;
+        const selectedMachines = [];
+        for (const cell of this.selectedCells) {
+            const [x, y] = cell.split(',').map(Number);
+            const machine = this.getMachine(x, y);
+            if (machine) {
+                selectedMachines.push({ x, y, type: machine.name, rot: machine.data.rot });
+            }
+        }
+        this.clipboard = { machines: selectedMachines };
+        // visual feedback
+        this.ParticleManager.spawnAt(screenPos.x, screenPos.y, { count: 50, colors: [0x00FFFFFF], size: 20, speed: 200, life: 500 });
+        // set clipboard origin (the grid cell mouse was over)
+        this.clipPos = { x: screenPos.x/ window.innerHeight * 9, y: screenPos.y / window.innerHeight * 9 };
+    }
+    pastePreview(ctx, screenPos) {
+        if (!this.clipboard) return;
+        const size = window.innerHeight / 9;
+        const offsetX = screenPos.x - size/2;
+        const offsetY = screenPos.y - size/2;
+        for (const m of this.clipboard.machines) {
+            const x = offsetX + (m.x - this.clipPos.x) * size;
+            const y = offsetY + (m.y - this.clipPos.y) * size;
+            // Draw a semi-transparent preview of the machine at (x,y) with rotation m.rot
+            const img = this.AssetManager.get('machines-image');
+            if (!img) continue;
+            const row = (this.DataManager.getData(joinDots('machineData', m.type))?.texture.row) || 0;
+            const tw = 16; const th = 16;
+            let cols = Math.max(1, Math.floor(img.width / tw));
+            const sx = 0; // for preview, we can just use the first frame of animation
+            const sy = row * th;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate((m.rot || 0) * Math.PI / 180);
+            ctx.globalAlpha = 0.5; // semi-transparent preview
+            ctx.drawImage(img, sx, sy, tw, th, -size/2, -size/2, size, size);
+            ctx.restore();
+        }
     }
     pause() {
         this.paused = true;
@@ -79,13 +157,16 @@ export default class FactoryManager {
         else this.pause();
     }
     update(delta){
-        if (this.paused) return;
         for (let i = 0; i < this.grid.length; i++) {
             for (let j = 0; j < this.grid[i].length; j++) {
                 const machine = this.grid[i][j];
                 if (!machine) continue;
                 if (!machine.update) continue;
-                machine.update(delta);
+                if (this.paused) {
+                    machine.updateRotation(delta);
+                }else{
+                    machine.update(delta);
+                }
             }
         }
         // Update items

@@ -493,6 +493,43 @@ export default class SidebarManager {
             });
         }
 
+        // Shift+left = select
+        this.input.addBindings([
+            ["keyboard", "ShiftLeft", "held"],
+            ["mouse", "left", "held"]
+        ], () => {
+            if (!this.factoryManager) return;
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            if (gridX < 0 || gridY < 0) return;
+            this.factoryManager.select(gridX, gridY);
+            this.input.block(3)
+        }, ["select"], 3);
+
+        // Shift+right = remove select
+        this.input.addBindings([
+            ["keyboard", "ShiftLeft", "held"],
+            ["mouse", "right", "held"]
+        ], () => {
+            if (!this.factoryManager) return;
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            if (gridX < 0 || gridY < 0) return;
+            this.factoryManager.select(gridX, gridY, "remove");
+            this.input.block(3)
+        }, ["select"], 3);
+
+        // c = copy selection 
+        this.input.addBinding('keyboard', 'KeyC', 'press', () => {
+            this.factoryManager.copySelection(this.input.getPos());
+        }, ["select"], 1);
+        // v = paste selection
+        this.input.addBinding('keyboard', 'KeyV', 'press', () => {
+            this.factoryManager.pasting = true;
+        }, ["select"], 1);
+
         this.input.addBinding('mouse', 'left', 'held', () => {
             if (!this.factoryManager) return;
             if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) return;
@@ -622,6 +659,7 @@ export default class SidebarManager {
                 this.particleManager.spawnAt(cx, cy, { count: 10, colors: [0xFFC800FF, 0x494949FF], size: 10, speed: 300, life: 700 });
                 this._refreshAllSlots();
             }
+            this.factoryManager.clearSelection();
         }, ["delete", "world-edit"]);
 
         this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
@@ -632,7 +670,6 @@ export default class SidebarManager {
             const gridY = Math.floor(gridPos.y / window.innerHeight * 9);
             const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
             const cur = parseInt(this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0, 10) || 0;
-            console.log(`Rotate at ${gridX},${gridY}`);
             const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
             this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
             this.factoryManager.getMachine(gridX, gridY)?.rotate(rotateAmount);

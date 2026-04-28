@@ -48,9 +48,6 @@ export default class Machine {
         }
     }
     updateRotation(delta) {
-        
-    }
-    update(delta){
         if (this.rotating) {
             const elapsed = performance.now() - this.startRotate;
             this.extraRotation = (elapsed / this.rotateDuration) * Math.PI/2 * this.rotating;
@@ -60,6 +57,9 @@ export default class Machine {
                 this.manager.generateQueue(); // regenerate draw queue to update machine order based on new rotation
             }
         }
+    }
+    update(delta){
+        this.updateRotation(delta);
     }
     // Called when an item occupies this machine's cell. `size` is pixels per cell.
     onItemCollision(item, size) {

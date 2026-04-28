@@ -41,7 +41,7 @@ class Program {
         this.canvas = document.getElementById('Draw');
         this.ctx = this.canvas.getContext('2d');
         this.ParticleManager = new ParticleManager(this.assetManager);
-        this.FactoryManager = new FactoryManager(this.dataManager, this.assetManager, this.ParticleManager);
+        this.FactoryManager = new FactoryManager(this.dataManager, this.assetManager, this.ParticleManager, this.input);
         // Initialize LevelManager which will wire input bindings for selection and placing/removing machines
         this.LevelManager = new LevelManager(this.assetManager, this.input, this.FactoryManager, this.dataManager, this.ParticleManager);
         this.LevelManager.init("level1");
@@ -91,16 +91,6 @@ class Program {
             const slot = this.LevelManager.slots[this.LevelManager.selectedIndex];
             if (slot) {
                 selectedType = slot.dataset.machineType;
-                // fallback: if machineType missing, derive from variants/variantIndex
-                if (!selectedType && slot.dataset.variants) {
-                    try {
-                        const variants = JSON.parse(slot.dataset.variants || '[]');
-                        const vi = parseInt(slot.dataset.variantIndex || '0', 10) || 0;
-                        selectedType = variants[vi] || variants[0] || null;
-                    } catch (err) {
-                        selectedType = null;
-                    }
-                }
                 selectedRot = parseInt(slot.dataset.rot || '0', 10) || 0;
                 // query pooled remaining for this slot (if available)
                 if (this.LevelManager.getSlotRemaining) selectedSlotRemaining = this.LevelManager.getSlotRemaining(this.LevelManager.selectedIndex);

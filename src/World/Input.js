@@ -10,6 +10,14 @@ export default class Input {
         this.disabledClasses = new Set(); // classes currently disabled (skip their handlers)
         // map className -> { timeoutId?, intervalId? }
         this._disabledTimers = new Map();
+        // composite bindings: array of { parts: [{type,button,action,key}], callback, priority, condition, classes }
+        this.compositeBindings = [];
+        // map of pressKey -> priority for temporary blocking until that press is released
+        this._blockedUntil = new Map();
+        // current trigger key while executing handlers (used by block() to auto-bind)
+        this._currentTriggerKey = null;
+        // manual/global block priority (when block called outside an event)
+        this._manualBlockedPriority = null;
         this.attachEvents();
     }
 
@@ -30,6 +38,32 @@ export default class Input {
         const cls = Array.isArray(classes) ? classes.slice() : (classes ? [classes] : []);
         this.keyMap.get(key).push({ callback, priority, condition, classes: cls });
     }
+    // addBindings: register across multiple input triples OR create a composite binding
+    // If `bindings` is an array of arrays (e.g. [[type,button,action], ...]) and its first element is an array,
+    // it will be treated as a single composite binding that fires only when ALL parts are satisfied together.
+    // Otherwise it registers the same handler separately for each triple (legacy behavior).
+    addBindings(bindings, callback = ()=>{console.log("Action triggered")}, classes = [], priority = 0, condition = ()=>true) {
+        if (!Array.isArray(bindings)) return;
+        // composite if first element is an array
+        if (bindings.length > 0 && Array.isArray(bindings[0])) {
+            // build parts
+            const parts = [];
+            for (const b of bindings) {
+                if (!Array.isArray(b) || b.length < 3) continue;
+                const [type, button, action] = b;
+                parts.push({ type, button, action, key: `${type}:${button}:${action}` });
+            }
+            if (parts.length === 0) return;
+            this.addCompositeBinding(parts, callback, classes, priority, condition);
+            return;
+        }
+    }
+
+    // addCompositeBinding: parts is an array of {type,button,action,key}
+    addCompositeBinding(parts, callback = ()=>{console.log("Action triggered")}, classes = [], priority = 0, condition = ()=>true) {
+        const cls = Array.isArray(classes) ? classes.slice() : (classes ? [classes] : []);
+        this.compositeBindings.push({ parts, callback, priority, condition, classes: cls });
+    }
     hasBinding(key) {
         return Array.from(this.keyMap.keys()).some(k => k === key);
     }
@@ -47,26 +81,104 @@ export default class Input {
         }
     }
     // block handlers below a priority threshold
+    // If called from inside a handler (synchronously), the block will be tied
+    // to the current trigger's corresponding `:press` key and automatically
+    // cleared when that press is released. If called outside an event, it
+    // behaves as a global persistent block (legacy behavior).
     block(priority) {
-        this.blockedPriority = (typeof priority === 'number') ? priority : Infinity;
+        const pr = (typeof priority === 'number') ? priority : Infinity;
+        if (this._currentTriggerKey) {
+            const parts = this._currentTriggerKey.split(':');
+            if (parts.length >= 2) {
+                const pressKey = `${parts[0]}:${parts[1]}:press`;
+                this._blockedUntil.set(pressKey, pr);
+                this._recalculateBlockedPriority();
+                return;
+            }
+        }
+        // legacy: global/manual block until manual unblock()
+        this._manualBlockedPriority = pr;
+        this._recalculateBlockedPriority();
     }
+    // keep unblock for compatibility (clears global block and any temporary blocks)
     unblock() {
-        this.blockedPriority = null;
+        this._manualBlockedPriority = null;
+        this._blockedUntil.clear();
+        this._recalculateBlockedPriority();
+    }
+
+    _recalculateBlockedPriority() {
+        let max = this._manualBlockedPriority != null ? this._manualBlockedPriority : null;
+        for (const v of this._blockedUntil.values()) {
+            if (max === null || v > max) max = v;
+        }
+        this.blockedPriority = max;
+    }
+
+    _clearBlockedForPressKey(pressKey) {
+        if (!pressKey) return;
+        if (this._blockedUntil.has(pressKey)) {
+            this._blockedUntil.delete(pressKey);
+            this._recalculateBlockedPriority();
+        }
     }
     // internal: execute handlers for a key string, passing optional arg to callbacks
     _executeHandlers(key, arg) {
-        if (!this.keyMap.has(key)) return;
+        const hasKey = this.keyMap.has(key);
         if (this._isOverUI(this.mousePos.x, this.mousePos.y)) return;
-        const handlers = this.keyMap.get(key).slice();
-        handlers.sort((a,b)=>b.priority - a.priority);
-        for (const { callback, priority, condition, classes } of handlers) {
+        // set current trigger so handlers can call block() to auto-bind to this trigger
+        this._currentTriggerKey = key;
+        try {
+            if (hasKey) {
+                const handlers = this.keyMap.get(key).slice();
+                handlers.sort((a,b)=>b.priority - a.priority);
+                for (const { callback, priority, condition, classes } of handlers) {
+                    if (this.blockedPriority != null && priority < this.blockedPriority) continue;
+                    // skip handlers that belong to a disabled class
+                    if (classes && classes.some(c => this.disabledClasses.has(c))) continue;
+                    try {
+                        if (condition()) callback(arg);
+                    } catch (err) {
+                        console.error('Input handler error', err);
+                    }
+                }
+            }
+            // always check composite bindings even if there are no atomic handlers for this key
+            this._checkCompositeBindings(key, arg);
+        } finally {
+            this._currentTriggerKey = null;
+        }
+    }
+
+    // check composite bindings that include the triggering key
+    _checkCompositeBindings(triggerKey, arg) {
+        if (!this.compositeBindings || this.compositeBindings.length === 0) return;
+        for (const cb of this.compositeBindings.slice()) {
+            const { parts, callback, priority, condition, classes } = cb;
+            // skip if blocked or disabled classes
             if (this.blockedPriority != null && priority < this.blockedPriority) continue;
-            // skip handlers that belong to a disabled class
             if (classes && classes.some(c => this.disabledClasses.has(c))) continue;
+            // only check composites that include the triggerKey (so we fire on an actual event)
+            const includesTrigger = parts.some(p => p.key === triggerKey);
+            if (!includesTrigger) continue;
+            // verify all parts are satisfied
+            let allGood = true;
+            for (const p of parts) {
+                const partKey = `${p.type}:${p.button}:${p.action}`;
+                // action 'held' => part must be currently pressed (active)
+                if (p.action === 'held') {
+                    const pressKey = `${p.type}:${p.button}:press`;
+                    if (!this.active.has(pressKey)) { allGood = false; break; }
+                    continue;
+                }
+                // action 'press'/'release'/'move' etc: must match the trigger event (we only fire on trigger)
+                if (p.key !== triggerKey) { allGood = false; break; }
+            }
+            if (!allGood) continue;
             try {
                 if (condition()) callback(arg);
             } catch (err) {
-                console.error('Input handler error', err);
+                console.error('Composite input handler error', err);
             }
         }
     }
@@ -206,6 +318,8 @@ export default class Input {
             }
             // notify release handlers
             this._executeHandlers(releaseKey);
+            // clear any temporary blocks tied to this press key
+            this._clearBlockedForPressKey(pressKey);
             // if there are held handlers and hold threshold wasn't fired, still pass duration on release
             if (this.keyMap.has(heldKey) && duration > 0 && (!state || !state.holdFired)) {
                 this._executeHandlers(heldKey, duration);
@@ -259,6 +373,8 @@ export default class Input {
                 this.active.delete(pressKey);
             }
             this._executeHandlers(releaseKey);
+            // clear any temporary blocks tied to this press key
+            this._clearBlockedForPressKey(pressKey);
             if (this.keyMap.has(heldKey) && duration > 0 && (!state || !state.holdFired)) {
                 this._executeHandlers(heldKey, duration);
             }
@@ -348,6 +464,8 @@ export default class Input {
                 const info = { touch: t, touches: Array.from(e.touches) };
                 this._executeHandlers(releaseKey, info);
                 this._executeHandlers(genericRelease, info);
+                // clear any temporary blocks tied to this touch press
+                this._clearBlockedForPressKey(pressKey);
                 if (this.keyMap.has(heldKey) && duration > 0 && (!state || !state.holdFired)) {
                     const payload = { touch: t, touches: Array.from(e.touches), duration };
                     this._executeHandlers(heldKey, payload);
@@ -371,6 +489,7 @@ export default class Input {
                 const info = { touch: t, touches: Array.from(e.touches) };
                 this._executeHandlers(`touch:${id}:release`, info);
                 this._executeHandlers(`touch:release`, info);
+                this._clearBlockedForPressKey(pressKey);
                 this.touches.delete(id);
             }
         }, { passive: false });
