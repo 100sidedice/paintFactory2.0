@@ -19,6 +19,16 @@ export default class spawner extends MachineBase {
             // spawn item at machine location
             const x = this.data.x ?? 0;
             const y = this.data.y ?? 0;
+            // Check with LevelManager (if available) whether we can spawn this color
+            let canSpawn = true;
+            try {
+                if (this.manager && this.manager.levelManager && this.color !== undefined) {
+                    // allow spawn if remaining >= 0 so that a placed spawner (which reserves one slot)
+                    // can still emit its reserved item once.
+                    canSpawn = this.manager.levelManager.getSpawnerRemaining(this.color) >= 0;
+                }
+            } catch (e) { canSpawn = true; }
+            if (!canSpawn) return;
             const id = `item_${Date.now()}_${this._count++}`;
             const item = new Item(id, x + 0.5, y + 0.5, this.color, this.manager);
             this.manager.items[id] = item;

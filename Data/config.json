@@ -5,7 +5,8 @@
         "money": 0,
         "upgrades": {
             "conveyor": {"speed": 1, "capacity": 1},
-            "spawner": {"spawnRate": 1, "mulit": 1}
+            "spawner": {"spawnRate": 1, "mulit": 1},
+            "mixer": {"mixRate": 1, "capacity": 10}
         },
         "level": 1
     }

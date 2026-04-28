@@ -17,7 +17,8 @@
             "spawner": {"name": "spawner"},
             "conveyor-left": {"name": "conveyor-left"},
             "conveyor-right": {"name": "conveyor-right"},
-            "seller": {"name": "seller"}
+            "seller": {"name": "seller"},
+            "mixer": {"name": "mixer"}
         }
     },
     "machineData": {

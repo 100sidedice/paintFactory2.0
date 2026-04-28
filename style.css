@@ -74,7 +74,37 @@ canvas {
 
 /* When a slot is depleted, reduce hover scale slightly to 1.1 to indicate limited interaction */
 #machine_sidebar .machine.depleted:hover .machine-icon {
-    transform: rotate(var(--rot-anim, var(--rot, 0deg))) scale(1.05);
+    transform: rotate(var(--rot-anim, var(--rot, 0deg))) scale(1.1);
+}
+
+/* spawner color list under spawner slots */
+#machine_sidebar .spawner-color-list {
+    position: absolute;
+    left: 6px;
+    top: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 20;
+}
+#machine_sidebar .spawner-color-entry {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+#machine_sidebar .spawner-color {
+    cursor: pointer;
+    font-weight: 700;
+    text-shadow: 0 0 2px rgba(0,0,0,0.8);
+}
+#machine_sidebar .spawner-color.selected {
+    text-shadow: 0 0 6px rgba(0,255,255,0.9);
+    filter: drop-shadow(0 0 6px rgba(0,255,255,0.6));
+}
+#machine_sidebar .spawner-color-count {
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 0 2px rgba(0,0,0,0.8);
 }
 
 /* variant indicator (small line of squares at the bottom center of a slot) */

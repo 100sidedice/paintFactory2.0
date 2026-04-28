@@ -78,5 +78,29 @@
         },
         "outputs": [],
         "texture": {"row": 6, "fps": 8, "info":"No rotation states - disable rotation for this machine"}
+    },
+    "mixer": {
+        "name": "Item Mixer",
+        "description": "Mixes colors together.)",
+        "collisionLeft": {
+            "top":7,
+            "bottom":7,
+            "left":0,
+            "right":9
+        },
+        "collisionRight": {
+            "top":7,
+            "bottom":7,
+            "left":9,
+            "right":0
+        },
+        "collisionUp": {
+            "top":0,
+            "bottom":7,
+            "left":7,
+            "right":7
+        },
+        "outputs": [],
+        "texture": {"row": 7, "fps": 8, "info":"Inputs left and right, output top. Use additive color mixing for this machine (e.g. red + green = yellow, red + blue = magenta, green + blue = cyan, red + green + blue = white)"}
     }
 }

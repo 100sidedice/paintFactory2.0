@@ -35,3 +35,30 @@ export function mixHexInt(aHex, bHex, t=0.5) {
 }
 
 export default { hexToRgba, rgbaToHexInt, mixHexInt };
+
+// Parse CSS hex string like '#RRGGBB' or '#RRGGBBAA' (with or without '#') into a 32-bit int
+export function cssHexToInt(str) {
+    if (!str) return 0;
+    if (typeof str === 'number') return str >>> 0;
+    let s = String(str).trim();
+    if (s[0] === '#') s = s.slice(1);
+    // support short forms? ignore for now
+    if (s.length === 6 || s.length === 8) {
+        const val = parseInt(s, 16) >>> 0;
+        return val;
+    }
+    // fallback: try parseInt
+    const v = parseInt(s, 16);
+    return (isNaN(v) ? 0 : (v >>> 0));
+}
+
+// Convert int hex to CSS string '#RRGGBB' or '#RRGGBBAA' if alpha present
+export function intToCssHex(n) {
+    const v = Number(n) >>> 0;
+    if (v <= 0xFFFFFF) {
+        return ('#' + ('000000' + v.toString(16)).slice(-6).toUpperCase());
+    }
+    // RRGGBBAA stored as 32-bit: RRGGBBAA
+    const hex = ('00000000' + v.toString(16)).slice(-8).toUpperCase();
+    return '#' + hex;
+}

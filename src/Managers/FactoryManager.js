@@ -119,6 +119,7 @@ export default class FactoryManager {
         machine.data.y = y;
         this.grid[x][y] = machine;
         this.generateQueue()
+        return machine;
     }
 
     getMachine(x,y) {

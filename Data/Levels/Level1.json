@@ -14,13 +14,15 @@
     },
     "Machines":[
         ["delete", 1],
-        ["spawner", 1],
+        ["spawner", 10],
         ["conveyor", 20],
         ["conveyor-left", 5],
         ["conveyor-right", 5],
+        ["mixer", 5],
         ["seller", 1]
     ],
     "spawner-items": [
-        {"color": "#FFFFFFFF"}
+        {"color": "#000000FF", "count": 5},
+        {"color": "#FF0000FF", "count": 5}
     ]
 }

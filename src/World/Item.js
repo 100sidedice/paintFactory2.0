@@ -45,7 +45,6 @@ export default class Item {
 
     _ensureSprite() {
         if (this._sprite) return;
-        console.log(this.color);
         const img = this._manager.AssetManager.get('color');
         if (!img) return;
         // pixels: mask at [0,0], base at [1,0], slice size 16
