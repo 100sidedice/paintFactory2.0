@@ -6,6 +6,11 @@ import Input from "./World/Input.js";
 import LevelManager from "./Managers/LevelManager.js";
 import ParticleManager from "./Managers/ParticleManager.js";
 import BackgroundManager from "./Managers/BackgroundManager.js";
+import { setChannel } from "./Helpers/colorHelpers.js";
+
+
+
+
 
 class Program {
     constructor() {
@@ -40,13 +45,10 @@ class Program {
         // Initialize LevelManager which will wire input bindings for selection and placing/removing machines
         this.LevelManager = new LevelManager(this.assetManager, this.input, this.FactoryManager, this.dataManager, this.ParticleManager);
         this.LevelManager.init("level1");
-        // test spawner
-        //this.FactoryManager.addMachine('spawner', 4,4, 0);
         this.FactoryManager.addMachine('conveyor', 4,3, 0);
+        this.FactoryManager.removeMachine(4,3);
         // Start the main loop
-        requestAnimationFrame(this.loop.bind(this));
-
-        
+        requestAnimationFrame(this.loop.bind(this));        
     }
     loop() {
         const now = performance.now();
@@ -65,7 +67,7 @@ class Program {
     draw() {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.fillStyle = '#222222';
+        this.ctx.fillStyle = '#222222FF';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         // Pixel art: disable smoothing on canvas context
         this.ctx.imageSmoothingEnabled = false;
@@ -118,83 +120,81 @@ class Program {
         const inset = lw / 2;
         // detect if there's already a machine at the hovered cell
         let hasMachine = false;
-        if (this.FactoryManager && this.FactoryManager.grid) {
-            if (gridX >= 0 && gridY >= 0 && gridX < this.FactoryManager.grid.length && gridY < (this.FactoryManager.grid[0]?.length||0)) {
-                hasMachine = !!this.FactoryManager.grid[gridX][gridY];
-            }
+        if (gridX >= 0 && gridY >= 0 && gridX < this.FactoryManager.grid.length && gridY < (this.FactoryManager.grid[0]?.length||0)) {
+            hasMachine = !!this.FactoryManager.grid[gridX][gridY];
         }
 
         if (!selectedType) {
             // no selection: simple white cursor (half-alpha)
-            this.ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            this.ctx.strokeStyle = '#FFFFFF80';
             this.ctx.lineWidth = lw;
             this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
         } else if (selectedType === 'delete') {
-            // delete preview: red pulsing outline
-            this.ctx.save();
-            this.ctx.strokeStyle = `rgba(255,0,0,${Math.min(0.95, 0.25 + 0.25 * pulse)})`;
-            this.ctx.lineWidth = lw;
-            this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
-            this.ctx.restore();
+        // delete preview: red pulsing outline
+        this.ctx.save();
+        this.ctx.strokeStyle = setChannel('#FF0000FF', 'a', Math.min(0.95, 0.25 + 0.25 * pulse), 'string');
+        this.ctx.lineWidth = lw;
+        this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
+        this.ctx.restore();
+        } else {
+            // If the world already has a machine at this tile, skip drawing the sprite preview
+            if (hasMachine) {
+                // draw only placement outline (half-alpha, pixel-perfect)
+                this.ctx.save();
+                this.ctx.strokeStyle = setChannel('#FFFFFFFF', 'a', 0.5, 'string');
+                this.ctx.lineWidth = lw; // match pixel-perfect stroke
+                this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
+                this.ctx.restore();
             } else {
-                // If the world already has a machine at this tile, skip drawing the sprite preview
-                if (hasMachine) {
-                    // draw only placement outline (half-alpha, pixel-perfect)
+                // If the selected slot has no remaining placements, don't draw sprite preview; show orange outline
+                if (selectedSlotRemaining <= 0) {
                     this.ctx.save();
-                    this.ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                    this.ctx.lineWidth = lw; // match pixel-perfect stroke
+                    this.ctx.strokeStyle = setChannel('#FFA500FF', 'a', 0.9, 'string');
+                    this.ctx.lineWidth = lw;
                     this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
                     this.ctx.restore();
                 } else {
-                    // If the selected slot has no remaining placements, don't draw sprite preview; show orange outline
-                    if (selectedSlotRemaining <= 0) {
-                        this.ctx.save();
-                        this.ctx.strokeStyle = 'rgba(255,165,0,0.9)';
-                        this.ctx.lineWidth = lw;
-                        this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
-                        this.ctx.restore();
+                    // draw machine preview (sprite) centered in grid cell, respecting rotation and pulse alpha
+                    const img = this.assetManager.get('machines-image');
+                    const md = this.dataManager.getData('machineData') || {};
+                    const data = md[selectedType] || {};
+                    const row = (data.texture && data.texture.row) || 0;
+                    const tw = 16, th = 16;
+                    const cols = img ? Math.max(1, Math.floor(img.width / tw)) : 1;
+                    const tileIndex = row * cols;
+                    const fps = (data.texture && data.texture.fps) || 1;
+                    const frame = Math.floor((now * fps) / 1000) % cols;
+                    const sx = frame * tw;
+                    const sy = Math.floor(tileIndex / cols) * th;
+
+                    const cx = gridX * size + size / 2;
+                    const cy = gridY * size + size / 2;
+                    // golden-ratio fit ~0.618 (shrink by ~38%)
+                    const scale = 0.618;
+                    const dw = size * scale;
+                    const dh = size * scale;
+
+                    this.ctx.save();
+                    this.ctx.translate(cx, cy);
+                    this.ctx.rotate((selectedRot * Math.PI) / 180);
+                    this.ctx.globalAlpha = alpha;
+                    if (img) {
+                        // draw sprite scaled to golden-ratio fit and centered
+                        this.ctx.drawImage(img, sx, sy, tw, th, -dw / 2, -dh / 2, dw, dh);
                     } else {
-                        // draw machine preview (sprite) centered in grid cell, respecting rotation and pulse alpha
-            const img = this.assetManager.get('machines-image');
-            const md = this.dataManager.getData('machineData') || {};
-            const data = md[selectedType] || {};
-            const row = (data.texture && data.texture.row) || 0;
-            const tw = 16, th = 16;
-            const cols = img ? Math.max(1, Math.floor(img.width / tw)) : 1;
-            const tileIndex = row * cols;
-            const fps = (data.texture && data.texture.fps) || 1;
-            const frame = Math.floor((now * fps) / 1000) % cols;
-            const sx = frame * tw;
-            const sy = Math.floor(tileIndex / cols) * th;
-
-            const cx = gridX * size + size / 2;
-            const cy = gridY * size + size / 2;
-            // golden-ratio fit ~0.618 (shrink by ~38%)
-            const scale = 0.618;
-            const dw = size * scale;
-            const dh = size * scale;
-
-            this.ctx.save();
-            this.ctx.translate(cx, cy);
-            this.ctx.rotate((selectedRot * Math.PI) / 180);
-            this.ctx.globalAlpha = alpha;
-            if (img) {
-                // draw sprite scaled to golden-ratio fit and centered
-                this.ctx.drawImage(img, sx, sy, tw, th, -dw / 2, -dh / 2, dw, dh);
-            } else {
-                // fallback rectangle (also shrunk)
-                this.ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-                this.ctx.fillRect(-dw / 2, -dh / 2, dw, dh);
-            }
-            this.ctx.restore();
-                        // outline to make placement clear (half-alpha)
-                        this.ctx.save();
-                        this.ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                        this.ctx.lineWidth = lw; // match pixel-perfect stroke
-                        this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
-                        this.ctx.restore();
+                        // fallback rectangle (also shrunk)
+                        this.ctx.fillStyle = setChannel('#FFFFFFFF', 'a', alpha, 'string');
+                        this.ctx.fillRect(-dw / 2, -dh / 2, dw, dh);
                     }
+                    this.ctx.restore();
+                    // outline to make placement clear (half-alpha)
+                    this.ctx.save();
+                    this.ctx.strokeStyle = setChannel('#FFFFFFFF', 'a', 0.5, 'string');
+                    this.ctx.lineWidth = lw; // match pixel-perfect stroke
+                    this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
+                    this.ctx.restore();
                 }
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
-import { cssHexToInt, intToCssHex } from "../Helpers/colorHelpers.js";
+import { addHex32, subHex32, stringHex, intHex } from "../Helpers/colorHelpers.js";
 
 export default class SidebarManager {
     constructor(assetManager, input, factoryManager, dataManager, particleManager) {
@@ -27,10 +27,10 @@ export default class SidebarManager {
         this.initialSpawnerCounts = {};
         this.initialSpawnerCountsInt = {};
         for (const si of this.spawnerItems) {
-            const k = intToCssHex(cssHexToInt(si.color));
-            this.initialSpawnerCounts[k] = si.count ?? 0;
-            const n = cssHexToInt(si.color);
-            this.initialSpawnerCountsInt[n] = si.count ?? 0;
+            si.color = intHex(si.color);
+            const cssKey = stringHex(si.color);
+            this.initialSpawnerCounts[cssKey] = si.count ?? 0;
+            this.initialSpawnerCountsInt[si.color] = si.count ?? 0;
         }
 
         this.initialCounts = {};
@@ -95,7 +95,7 @@ export default class SidebarManager {
         slot.appendChild(countEl);
         this._updateSlotCountDisplay(slot);
 
-        if (variants.indexOf('spawner') !== -1 && this.spawnerItems && this.spawnerItems.length) {
+        if (variants.indexOf('spawner') !== -1) {
             const list = document.createElement('div');
             list.className = 'spawner-color-list';
             for (const si of this.spawnerItems) {
@@ -104,8 +104,8 @@ export default class SidebarManager {
                 const colorText = document.createElement('span');
                 colorText.className = 'spawner-color';
                 colorText.textContent = String(si.count ?? 0);
-                colorText.style.color = si.color;
-                const css = intToCssHex(cssHexToInt(si.color));
+                colorText.style.color = stringHex(si.color);
+                const css = stringHex(si.color);
                 colorText.dataset.color = css;
                 wrap.appendChild(colorText);
                 colorText.addEventListener('click', (e) => {
@@ -117,7 +117,7 @@ export default class SidebarManager {
                 list.appendChild(wrap);
             }
             slot.appendChild(list);
-            if (!slot.dataset.spawnerColor) slot.dataset.spawnerColor = intToCssHex(cssHexToInt(this.spawnerItems[0].color));
+            if (!slot.dataset.spawnerColor) slot.dataset.spawnerColor = stringHex(this.spawnerItems[0].color);
         }
 
         icon.addEventListener('wheel', (e) => {
@@ -191,13 +191,14 @@ export default class SidebarManager {
             return;
         }
         const img = this.assetManager.get('machines-image');
-        if (!img || !this.dataManager) return;
+        if (!img) return;
         const data = this.dataManager.getData(joinDots('machineData', type)) ?? {};
-        const row = (data.texture && data.texture.row) ?? 0;
-        const tw = 16; const th = 16;
+        const row = data.texture.row;
+        const tw = 16; 
+        const th = 16;
         const cols = Math.max(1, Math.floor(img.width / tw));
         const tileIndex = row * cols;
-        let fps = (data.texture && data.texture.fps) ?? 1;
+        let fps = data.texture.fps;
         const remaining = this._getRemainingCount(type);
         if (remaining <= 0) fps = fps * 0.7;
         const frame = Math.floor((nowMs * fps) / 1000) % cols;
@@ -225,11 +226,8 @@ export default class SidebarManager {
 
     _getSpawnerRemaining(color) {
         if (color === null || color === undefined) return 0;
-        let targetInt = null;
-        if (typeof color === 'number') targetInt = color;
-        else targetInt = cssHexToInt(String(color));
-        if (targetInt === null || targetInt === undefined) return 0;
-        const allowed = (this.initialSpawnerCountsInt && (this.initialSpawnerCountsInt[targetInt] ?? 0)) ?? 0;
+        const targetInt = intHex(color);
+        const allowed = this.initialSpawnerCountsInt?.[targetInt] ?? 0;
         let placedSpawners = 0;
         const grid = this.factoryManager.grid;
         for (let x = 0; x < grid.length; x++) {
@@ -244,9 +242,7 @@ export default class SidebarManager {
                 if (m.data && m.data.color !== undefined && m.data.color !== null) mc = m.data.color;
                 else if (m.color !== undefined && m.color !== null) mc = m.color;
                 if (mc === null || mc === undefined) continue;
-                let mcInt = null;
-                if (typeof mc === 'number') mcInt = mc;
-                else mcInt = cssHexToInt(String(mc));
+                let mcInt = intHex(mc);
                 if (mcInt === null || mcInt === undefined) continue;
                 if (mcInt === targetInt) placedSpawners++;
             }
@@ -362,13 +358,13 @@ export default class SidebarManager {
                         if (remaining <= 0) {
                             const activeIndex = parseInt(slot.dataset.variantIndex ?? '0', 10) || 0;
                             if (vi === activeIndex) {
-                                dot.style.background = '#FF4444';
+                                dot.style.background = '#FF4444FF';
                             } else {
-                                dot.style.background = '#8B0000';
+                                dot.style.background = '#8B0000FF';
                             }
-                            dot.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,0.25)';
+                            dot.style.boxShadow = 'inset 0 0 0 1px #000000A0';
                         } else {
-                            dot.style.background = (vi === parseInt(slot.dataset.variantIndex ?? '0', 10)) ? '#00FFFF' : '#666';
+                            dot.style.background = (vi === parseInt(slot.dataset.variantIndex ?? '0', 10)) ? '#00FFFFFF' : '#666666FF';
                             dot.style.boxShadow = '';
                         }
                     }
@@ -453,7 +449,7 @@ export default class SidebarManager {
                     const size = window.innerHeight / 9;
                     const cx = gridX * size + size / 2;
                     const cy = gridY * size + size / 2;
-                    this.particleManager.spawnAt(cx, cy, { count: 8, colors: ['#00FFFF', '#FFA500'], size: 4, speed: 300, life: 500 });
+                    this.particleManager.spawnAt(cx, cy, { count: 8, colors: [0x00FFFFFF, 0xFFA500FF], size: 4, speed: 300, life: 500 });
                 }
                 const newVariantIndex = variants.indexOf(newType);
                 if (newVariantIndex !== -1) {
@@ -511,7 +507,7 @@ export default class SidebarManager {
                     const size = window.innerHeight / 9;
                     const cx = (gridX + 1/2) * size;
                     const cy = (gridY + 1/2) * size;
-                    this.particleManager.spawnAt(cx, cy, { count: 10, colors: ['#FFC800', '#494949'], size: 10, speed: 300, life: 700 });
+                    this.particleManager.spawnAt(cx, cy, { count: 10, colors: [0xFFC800FF, 0x494949FF], size: 10, speed: 300, life: 700 });
                     this._refreshAllSlots();
                 }
                 return;
@@ -523,7 +519,7 @@ export default class SidebarManager {
             const placed = this.factoryManager.addMachine(type, gridX, gridY, slot.dataset.rot);
             if (type.split('-')[0] === 'spawner') {
                 placed.data = placed.data || {};
-                const n = cssHexToInt(slot.dataset.spawnerColor);
+                const n = intHex(slot.dataset.spawnerColor);
                 placed.data.color = n;
                 placed.color = n;
                 this._refreshAllSlots();
@@ -532,7 +528,7 @@ export default class SidebarManager {
                 const size = window.innerHeight / 9;
                 const cx = (gridX + 1/2) * size;
                 const cy = (gridY + 1/2) * size;
-                this.particleManager.spawnAt(cx, cy, { count: 20, colors: ['#fbff00','#ff5144','#ffa600'], size: 5, speed: 500, life: 900 });
+                this.particleManager.spawnAt(cx, cy, { count: 20, colors: [0xFBFF00FF, 0xFF5144FF, 0xFFA600FF], size: 5, speed: 500, life: 900 });
             }
         }, ["world-edit"]);
 
@@ -601,7 +597,7 @@ export default class SidebarManager {
                     if (type.split('-')[0] === 'spawner') {
                         const chosen = (machine.data && machine.data.color) || machine.color || null;
                         if (chosen !== null && chosen !== undefined) {
-                            const css = intToCssHex(cssHexToInt(chosen));
+                            const css = stringHex(chosen);
                             slot.dataset.spawnerColor = css;
                             const list = slot.querySelector('.spawner-color-list');
                             const entries = Array.from(list.querySelectorAll('.spawner-color'));
@@ -623,7 +619,7 @@ export default class SidebarManager {
                 const size = window.innerHeight / 9;
                 const cx = gridX * size + size / 2;
                 const cy = gridY * size + size / 2;
-                this.particleManager.spawnAt(cx, cy, { count: 10, colors: ['#FFC800', '#494949'], size: 10, speed: 300, life: 700 });
+                this.particleManager.spawnAt(cx, cy, { count: 10, colors: [0xFFC800FF, 0x494949FF], size: 10, speed: 300, life: 700 });
                 this._refreshAllSlots();
             }
         }, ["delete", "world-edit"]);

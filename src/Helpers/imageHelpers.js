@@ -1,3 +1,5 @@
+
+import { intHex } from './colorHelpers.js';
 /**
  * Draws a square region (tile) from a tilesheet onto a canvas.
  * @param {CanvasRenderingContext2D} ctx - Canvas rendering context to draw into.
@@ -12,7 +14,6 @@
  * @returns {void}
  * @example drawTile(ctx, tilesheetImg, 32, 1, 2, 100, 50, Math.PI/2, 1);
  */
-import { hexToRgba, rgbaToHexInt, mixHexInt } from './colorHelpers.js';
 
 export function drawTile(ctx, image, slicePx, tileX, tileY, destX = 0, destY = 0, rotation = 0, scale = 1) {
     const sx = tileX * slicePx;
@@ -34,7 +35,7 @@ export function drawTile(ctx, image, slicePx, tileX, tileY, destX = 0, destY = 0
 /**
  * Recolor a mask tile (replace pixels matching `maskColor` with `newColor`),
  * then overlay a base tile on top and return the resulting canvas.
- * All colors are int-32 hex (0xRRGGBB or 0xRRGGBBAA).
+ * All colors are int-32 hex (0xRRGGBBAA ONLY).
  * @param {CanvasImageSource} image - Source tilesheet image
  * @param {number} sliceSize - Tile size in pixels (assumes square tiles)
  * @param {[number,number]} baseImg - [tileX, tileY] of the base image frame
@@ -54,25 +55,29 @@ export function composeMaskedFrame(image, sliceSize, baseImg, maskImg, newColor,
     const maskC = hexToRgba(maskColor);
 
     // draw mask frame first
+    // Convert a 32-bit hex (or CSS hex string) to an [r,g,b,a] byte array (0-255)
+    function hexToRgba(hex32) {
+        const v = intHex(hex32) >>> 0;
+        const r = (v >>> 24) & 0xFF;
+        const g = (v >>> 16) & 0xFF;
+        const b = (v >>> 8) & 0xFF;
+        const a = v & 0xFF;
+        return [r, g, b, a];
+    }
     const mx = (maskImg && maskImg[0])|0;
     const my = (maskImg && maskImg[1])|0;
     ctx.clearRect(0,0,s,s);
     ctx.drawImage(image, mx*s, my*s, s, s, 0, 0, s, s);
 
     // replace maskColor -> newColor in image data
-    try {
-        const id = ctx.getImageData(0,0,s,s);
-        const data = id.data;
-        for (let i=0;i<data.length;i+=4) {
-            if (data[i] === maskC[0] && data[i+1] === maskC[1] && data[i+2] === maskC[2] && data[i+3] === maskC[3]) {
-                data[i] = newC[0]; data[i+1] = newC[1]; data[i+2] = newC[2]; data[i+3] = newC[3];
-            }
+    const id = ctx.getImageData(0,0,s,s);
+    const data = id.data;
+    for (let i=0;i<data.length;i+=4) {
+        if (data[i] === maskC[0] && data[i+1] === maskC[1] && data[i+2] === maskC[2] && data[i+3] === maskC[3]) {
+            data[i] = newC[0]; data[i+1] = newC[1]; data[i+2] = newC[2]; data[i+3] = newC[3];
         }
-        ctx.putImageData(id,0,0);
-    } catch (e) {
-        // getImageData may fail for cross-origin images; fall back to drawing without recolor
-        console.warn('composeMaskedFrame: getImageData failed, returning base overlay without recolor', e);
     }
+    ctx.putImageData(id,0,0);
 
     // draw base frame on top
     const bx = (baseImg && baseImg[0])|0;

@@ -62,18 +62,17 @@ export default class FactoryManager {
         // Draw items (entities) after machines, using world->screen mapping
         for (const id in this.items) {
             const item = this.items[id];
-            if (!item || !item.draw) continue;
             // item coordinates are in grid space where (x,y) => pixel = x*size, y*size
             item.draw(ctx, size);
         }
     }
     pause() {
         this.paused = true;
-        this.ParticleManager.spawnAt(window.innerWidth/2, window.innerHeight/2, { count: 200, colors: ['#333333', '#222222'], size: 50, speed: 3750, life: 2000, gravityStrength: 0, speedNoise: 1000 , accel: 0.999, accelNoise:0});
+        this.ParticleManager.spawnAt(window.innerWidth/2, window.innerHeight/2, { count: 200, colors: [0x333333FF, 0x222222FF], size: 50, speed: 3750, life: 2000, gravityStrength: 0, speedNoise: 1000 , accel: 0.999, accelNoise:0});
     }
     unpause() {
         this.paused = false;
-        this.ParticleManager.spawnAt(window.innerWidth/2, window.innerHeight/2, { count: 200, colors: ['#77000066', '#77770066', '#00770066', '#00777766', '#00007766'], size: 50, speed: 3750, life: 2000, gravityStrength: 0, speedNoise: 1000 , accel: 0.999, accelNoise:0});
+        this.ParticleManager.spawnAt(window.innerWidth/2, window.innerHeight/2, { count: 200, colors: [0x77000066, 0x77770066, 0x00770066, 0x00777766, 0x00007766], size: 50, speed: 3750, life: 2000, gravityStrength: 0, speedNoise: 1000 , accel: 0.999, accelNoise:0});
     }
     toggle() {
         if(this.paused) this.unpause();
@@ -114,7 +113,6 @@ export default class FactoryManager {
         // Deep-clone machineData so instances don't share the same object
         const machine = new machineClass(type, structuredClone(machineData), this);
         machine.data.rot = rot;
-        // record grid coordinates on the machine instance for machine logic (spawners, etc.)
         machine.data.x = x;
         machine.data.y = y;
         this.grid[x][y] = machine;
@@ -154,13 +152,13 @@ export default class FactoryManager {
 
     setMachineProperty(x,y,prop,value) {
         const machine = this.grid[x][y];
-        if (!machine) { console.log(`No machine at (${x},${y}) to set property ${prop}`); return; }
+        if (!machine) return;
         machine.data[prop] = value;
         this.generateQueue(); // Regenerate draw queue if properties affect drawing (like rotation)
     }
     getMachineProperty(x,y,prop) {
         const machine = this.grid[x][y];
-        if (!machine) { console.log(`No machine at (${x},${y}) to get property ${prop}`); return null; }
+        if (!machine) return null;
         return machine.data[prop];
     }
     removeMachine(x,y) {

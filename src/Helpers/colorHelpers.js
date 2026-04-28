@@ -1,64 +1,76 @@
-/**
- * Color helpers operating on 32-bit integers (0xRRGGBB or 0xRRGGBBAA).
- */
-export function hexToRgba(hex) {
-    if (hex === undefined || hex === null) return [0,0,0,255];
-    const h = Number(hex) >>> 0;
-    if (h <= 0xFFFFFF) {
-        const r = (h >> 16) & 0xFF;
-        const g = (h >> 8) & 0xFF;
-        const b = h & 0xFF;
-        return [r, g, b, 255];
+
+
+// Add multiple 32-bit hex RGBA colors (RRGGBBAA format). Channels are clamped to 0..255.
+export function addHex32(...colors) {
+    if (!colors || colors.length === 0) return 0 >>> 0;
+    let r = 0, g = 0, b = 0, a = 0;
+    for (const c of colors) {
+        const v = intHex(c) >>> 0;
+        r += (v >>> 24) & 0xFF;
+        g += (v >>> 16) & 0xFF;
+        b += (v >>> 8) & 0xFF;
+        a += v & 0xFF;
     }
-    // interpret as RRGGBBAA
-    const r = (h >> 24) & 0xFF;
-    const g = (h >> 16) & 0xFF;
-    const b = (h >> 8) & 0xFF;
-    const a = h & 0xFF;
-    return [r, g, b, a];
+    r = Math.min(255, r);
+    g = Math.min(255, g);
+    b = Math.min(255, b);
+    a = Math.min(255, a);
+    return (((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((b & 0xFF) << 8) | (a & 0xFF)) >>> 0;
 }
 
-export function rgbaToHexInt([r=0,g=0,b=0,a=255]){
-    r = r & 0xFF; g = g & 0xFF; b = b & 0xFF; a = a & 0xFF;
-    if (a === 255) return ((r<<16) | (g<<8) | b) >>> 0;
-    return (((r&0xFF)<<24) | ((g&0xFF)<<16) | ((b&0xFF)<<8) | (a&0xFF)) >>> 0;
+// Subtract colorB from colorA per-channel (RRGGBBAA format). Channels are clamped to 0..255.
+export function subHex32(colorA, colorB) {
+    const a = intHex(colorA) >>> 0;
+    const b = intHex(colorB) >>> 0;
+    const r = Math.max(0, ((a >>> 24) & 0xFF) - ((b >>> 24) & 0xFF));
+    const g = Math.max(0, ((a >>> 16) & 0xFF) - ((b >>> 16) & 0xFF));
+    const bb = Math.max(0, ((a >>> 8) & 0xFF) - ((b >>> 8) & 0xFF));
+    const aa = Math.max(0, (a & 0xFF) - (b & 0xFF));
+    return (((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((bb & 0xFF) << 8) | (aa & 0xFF)) >>> 0;
 }
 
-export function mixHexInt(aHex, bHex, t=0.5) {
-    const a = hexToRgba(aHex);
-    const b = hexToRgba(bHex);
-    const r = Math.round(a[0] + (b[0]-a[0])*t);
-    const g = Math.round(a[1] + (b[1]-a[1])*t);
-    const bb = Math.round(a[2] + (b[2]-a[2])*t);
-    const aa = Math.round(a[3] + (b[3]-a[3])*t);
-    return rgbaToHexInt([r,g,bb,aa]);
+// Convert a 32-bit integer (RRGGBBAA) to a CSS hex string '#RRGGBBAA'.
+export function stringHex(hex32) {
+    const v = intHex(hex32) >>> 0;
+    const hex = ('00000000' + v.toString(16)).slice(-8).toUpperCase();
+    return '#' + hex;
 }
 
-export default { hexToRgba, rgbaToHexInt, mixHexInt };
-
-// Parse CSS hex string like '#RRGGBB' or '#RRGGBBAA' (with or without '#') into a 32-bit int
-export function cssHexToInt(str) {
-    if (!str) return 0;
-    if (typeof str === 'number') return str >>> 0;
-    let s = String(str).trim();
+// Parse a CSS hex string (expects RRGGBBAA style, with or without leading '#') to a 32-bit integer.
+export function intHex(str) {
+    // If a number is provided, treat it as an already-correct 32-bit value
+    if (typeof str === 'number') {
+        return (Number(str) >>> 0);
+    }
+    if (typeof str !== 'string') return 0 >>> 0;
+    let s = str.trim();
     if (s[0] === '#') s = s.slice(1);
-    // support short forms? ignore for now
-    if (s.length === 6 || s.length === 8) {
-        const val = parseInt(s, 16) >>> 0;
-        return val;
-    }
-    // fallback: try parseInt
     const v = parseInt(s, 16);
     return (isNaN(v) ? 0 : (v >>> 0));
 }
 
-// Convert int hex to CSS string '#RRGGBB' or '#RRGGBBAA' if alpha present
-export function intToCssHex(n) {
-    const v = Number(n) >>> 0;
-    if (v <= 0xFFFFFF) {
-        return ('#' + ('000000' + v.toString(16)).slice(-6).toUpperCase());
-    }
-    // RRGGBBAA stored as 32-bit: RRGGBBAA
-    const hex = ('00000000' + v.toString(16)).slice(-8).toUpperCase();
-    return '#' + hex;
+// Set a single channel (r/g/b/a or 0..3) on a 32-bit RRGGBBAA color.
+// `color` may be a string like '#RRGGBBAA' or a Number. `value` is 0..1.
+// `type` controls return: 'string' => '#RRGGBBAA', '32' => 32-bit integer.
+export function setChannel(color, channel, value, type = 'string') {
+    const idx = (ch => {
+        if (typeof ch === 'number') return ch;
+        const c = String(ch).toLowerCase();
+        if (c === 'r') return 0;
+        if (c === 'g') return 1;
+        if (c === 'b') return 2;
+        if (c === 'a') return 3;
+        // fallback: parse numeric string
+        const n = parseInt(c, 10);
+        return isNaN(n) ? 0 : n;
+    })(channel);
+
+    const v = intHex(color) >>> 0;
+    const clamped = Math.max(0, Math.min(1, Number(value) || 0));
+    const byte = Math.round(clamped * 255) & 0xFF;
+    // channel index: 0 -> R (highest), 1 -> G, 2 -> B, 3 -> A (lowest)
+    const shift = (3 - (idx % 4)) * 8;
+    const mask = (~(0xFF << shift)) >>> 0;
+    const result = ((v & mask) | ((byte & 0xFF) << shift)) >>> 0;
+    return type === '32' ? result : stringHex(result);
 }

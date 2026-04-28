@@ -6,9 +6,12 @@
         <link rel="stylesheet" href="style.css">
     </head>
     <body>
+        <div id="debug-container" style="position: absolute; top: 10px; left: 10px; z-index:1000; max-height: 40vh; overflow: auto;">
+            <pre id="debug" style="margin:0; color: #FFFFFF; white-space: pre-wrap; font-family: monospace; font-size:12px;">-</pre>
+        </div>
         <canvas id="Draw" width="800" height="600"></canvas>
         <script src="./src/script.js" type="module"></script>
-        <div id="debug" style="position: absolute; top: 10px; left: 10px; z-index:1000; color: #FFFFFF"></div>
+        <script src="./src/debug.js" type="module"></script>
         <!-- Game UI -->
         <div id="machine_sidebar" class = "ui">
             <div class="machine"></div>

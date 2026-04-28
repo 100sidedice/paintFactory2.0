@@ -1,3 +1,5 @@
+import { stringHex, intHex } from "../Helpers/colorHelpers.js";
+
 export default class ParticleManager {
     constructor() {
         this.particles = [];
@@ -22,7 +24,8 @@ export default class ParticleManager {
         // defaults (can be overridden via opts)
         const defaultSpeed = opts.speed ?? 60; // pixels per second
         const defaultLife = opts.life ?? 800; // ms
-        const colors = opts.colors ?? ['#FFCC00', '#FF8844', '#FF4444'];
+        const colors = opts.colors ?? [0xFFCC00FF, 0xFF8844FF, 0xFF4444FF];
+        const resolvedColors = (colors || []).map(c => stringHex(intHex(c)));
         const gravityStrength = opts.gravityStrength ?? this.gravityStrength ?? 300;
         const lifetimeNoise = opts.lifetimeNoise ?? this.lifetimeNoise ?? 0.2;
         const speedNoise = opts.speedNoise ?? this.speedNoise ?? 0.3;
@@ -42,7 +45,7 @@ export default class ParticleManager {
             const ax = baseAx + (Math.random() -0.5) * 2 * accelNoise;
             const ay = baseAy + (Math.random() -0.5) * 2 * accelNoise;
 
-            const p = {
+                const p = {
                 x: x,
                 y: y,
                 vx: vx,
@@ -50,7 +53,7 @@ export default class ParticleManager {
                 life: life,
                 age: 0,
                 size: (opts.size || 6) * (0.6 + Math.random() * 0.8),
-                color: colors[Math.floor(Math.random() * colors.length)],
+                color: resolvedColors[Math.floor(Math.random() * resolvedColors.length)],
                 _gravity: gravityStrength,
                 _accel: { x: ax, y: ay }
             };

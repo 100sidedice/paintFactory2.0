@@ -9,7 +9,7 @@ export default class spawner extends MachineBase {
         this.spawnInterval = (machineData.spawnInterval || 1000);
         this._acc = 0;
         this._count = 0;
-        this.color = machineData.color || 0xFFFFFF; // default to white if no color provided
+        this.color = machineData.color || 0xFFFFFFFF; // default to white with full alpha
     }
     update(delta) {
         super.update(delta);
@@ -19,16 +19,6 @@ export default class spawner extends MachineBase {
             // spawn item at machine location
             const x = this.data.x ?? 0;
             const y = this.data.y ?? 0;
-            // Check with LevelManager (if available) whether we can spawn this color
-            let canSpawn = true;
-            try {
-                if (this.manager && this.manager.levelManager && this.color !== undefined) {
-                    // allow spawn if remaining >= 0 so that a placed spawner (which reserves one slot)
-                    // can still emit its reserved item once.
-                    canSpawn = this.manager.levelManager.getSpawnerRemaining(this.color) >= 0;
-                }
-            } catch (e) { canSpawn = true; }
-            if (!canSpawn) return;
             const id = `item_${Date.now()}_${this._count++}`;
             const item = new Item(id, x + 0.5, y + 0.5, this.color, this.manager);
             this.manager.items[id] = item;

@@ -1,0 +1,1 @@
+1. All colors must be in int32 hex format. (rgba). Only convert to a string when directly dealing with raw html or ctx functions. That's it. 
