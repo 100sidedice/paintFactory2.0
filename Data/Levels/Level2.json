@@ -12,7 +12,7 @@
     "Goal": {
         "#0000FFFF": 20,
         "#FF0000FF": 20,
-        "conveyor": 10
+        "conveyor-right": 1
     },
     "Machines":[
         ["delete", 1],
