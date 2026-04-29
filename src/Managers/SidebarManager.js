@@ -225,7 +225,7 @@ export default class SidebarManager {
         if (!type) return 0;
         const allowed = this.initialCounts[type] ?? 0;
         const placed = this._countPlacedOfType(type);
-        return Math.max(0, allowed - placed);
+        return (allowed - placed);
     }
 
     _getSpawnerRemaining(color) {
@@ -251,7 +251,7 @@ export default class SidebarManager {
                 if (mcInt === targetInt) placedSpawners++;
             }
         }
-        return Math.max(0, allowed - placedSpawners);
+        return (allowed - placedSpawners);
     }
 
     _countPlacedOfType(type) {

@@ -77,7 +77,7 @@ export default class mixer extends MachineBase {
         const colUp = this.data.collisionUp || this.data.collision || {};
         if (isItemColliding(this.data.x, this.data.y, item, size, colUp, this.data.rot)) {
             const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
-            applyMovement(true, item, speed, 0);
+            applyMovement(true, item, speed, this.data.rot);
             return;
         }
 

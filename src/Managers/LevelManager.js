@@ -32,7 +32,7 @@ export default class LevelManager {
      * Switch the active level to `levelKey`.
      * Returns true on success, false if level key not found.
      */
-    async switchLevel(levelKey = null) {
+    async switchLevel(levelKey = null, options = {}) {
         const levels = this.assetManager.get('Levels');
         const levelData = levels && levels[levelKey];
         if (!levelData) {
@@ -95,17 +95,23 @@ export default class LevelManager {
             }
         }
 
-        // finally, show level description with a typewriter effect (if element exists)
+        // finally, show level description. By default use typewriter, but allow skipping for resets
         const desc = levelData.Description ?? 'No description provided for this level.';
         const head = levelData.Header ?? 'No header provided for this level.';
         const funny = levelData.funny ?? '';
-        // clear all three's text before typing them out:
+        // clear all three's text before typing or setting them directly
         document.querySelector('#level-id').textContent = '';
         document.querySelector('#level-text').textContent = '';
         document.querySelector('#funny-text').textContent = '';
-        await this.typeText('#level-id', head, 100);
-        await this.typeText('#level-text', desc, 30);
-        await this.typeText('#funny-text', funny, 30);
+        if (options && options.skipTypewriter) {
+            document.querySelector('#level-id').textContent = head;
+            document.querySelector('#level-text').textContent = desc;
+            document.querySelector('#funny-text').textContent = funny;
+        } else {
+            await this.typeText('#level-id', head, 100);
+            await this.typeText('#level-text', desc, 30);
+            await this.typeText('#funny-text', funny, 30);
+        }
         return true;
     }
 
@@ -124,8 +130,8 @@ export default class LevelManager {
     // Register input bindings for level switching.
     setupInputBindings() {
         this.input.addBinding('keyboard', 'KeyL', 'press', () => {this.cycleLevel(true); }, 'level-manager', 0);
-        // F2: export placed machines as level JSON to clipboard
-        this.input.addBinding('keyboard', 'F2', 'press', () => { this.exportPlacedToClipboard(); }, 'level-manager', 0);
+        // F8: export placed machines as level JSON to clipboard
+        this.input.addBinding('keyboard', 'F8', 'press', () => { this.exportPlacedToClipboard(); }, 'level-manager', 0);
     }
 
     // Cycle levels. If `forward` is true advance, otherwise go backwards.

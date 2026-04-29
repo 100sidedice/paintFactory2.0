@@ -1,0 +1,27 @@
+{
+    "Header": "Level 7: Presets",
+    "Description": "Create 5 white dye",
+    "funny": "There will be almost no rules on what the game allows. Including for me, the developer.",
+    "Hints": [
+        "Click a machine in the sidebar to select it, then click on the grid to place it",
+        "Right click a machine in the sidebar to see it's description",
+        "Make a path from the spawner to the goal using conveyor belts"
+    ],
+    "Goal": {
+        "#FFFFFFFF": 5
+    },
+    "Machines": [["delete",1],["spawner",1],["mixer",1],["conveyor",0],["seller",1]],
+    "spawner-items": [{"color":65535,"count":999},{"color":16711935,"count":999},{"color":4278190335,"count":999}],
+    "Placed": {
+        "5.3": {
+            "type": "conveyor",
+            "rot": 180
+        },
+        "5.4": "conveyor",
+        "9.3": {
+            "type": "conveyor",
+            "rot": 180
+        },
+        "9.4": "conveyor"
+    }
+}

@@ -69,6 +69,18 @@ class Program {
         }
         try { localStorage.setItem('pf_selectedLevel', levelKey); } catch (e) {}
         this.LevelManager.init(levelKey);
+        // Wire reset button (reloads current level from JSON)
+        try {
+            const resetBtn = document.getElementById('resetBtn');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', () => {
+                    if (this.LevelManager && this.LevelManager.currentLevelKey) {
+                        // reload the current level from its JSON but skip the typewriter
+                        this.LevelManager.switchLevel(this.LevelManager.currentLevelKey, { skipTypewriter: true });
+                    }
+                });
+            }
+        } catch (e) { console.warn('Failed to attach reset button handler', e); }
         // Start the main loop
         requestAnimationFrame(this.loop.bind(this));        
     }

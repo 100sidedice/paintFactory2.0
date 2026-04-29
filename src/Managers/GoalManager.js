@@ -227,12 +227,8 @@ export default class GoalManager {
             overlay.style.opacity = '0';
             overlay.style.transition = 'opacity 800ms ease-in-out';
             overlay.style.zIndex = '2000';
-            document.body.appendChild(overlay);
-            // force layout then start fade
-            void overlay.offsetWidth;
-            overlay.style.opacity = '1';
-            overlay.addEventListener('transitionend', () => {
-                // determine numeric level index if possible, then persist it and navigate
+            // helper to persist selected level and navigate
+            const persistAndNavigate = () => {
                 let levelParam = this.levelManager?.currentLevelKey ?? '';
                 try {
                     const levels = this.levelManager?.assetManager?.get('Levels') || {};
@@ -240,7 +236,6 @@ export default class GoalManager {
                     const idx = keys.indexOf(this.levelManager?.currentLevelKey);
                     if (idx !== -1) levelParam = idx + 1; // 1-based index used by levelSelect
                 } catch (e) {}
-                // persist resolved level into localStorage and navigate to win.html
                 try {
                     let storeVal = null;
                     if (typeof levelParam === 'number') storeVal = 'level' + levelParam;
@@ -249,7 +244,18 @@ export default class GoalManager {
                     localStorage.setItem('pf_selectedLevel', storeVal);
                 } catch (e) {}
                 window.location.href = 'win.html';
-            }, { once: true });
+            };
+
+            // Track whether we've already navigated (so fallback doesn't double-run)
+            let navigated = false;
+            const onTransitionEnd = () => { if (!navigated) { navigated = true; persistAndNavigate(); } };
+            overlay.addEventListener('transitionend', onTransitionEnd, { once: true });
+            document.body.appendChild(overlay);
+            // force layout then start fade (listener attached before triggering)
+            void overlay.offsetWidth;
+            overlay.style.opacity = '1';
+            // fallback: if transitionend missed for any reason, ensure we still persist+navigate
+            setTimeout(() => { if (!navigated) { navigated = true; persistAndNavigate(); } }, 1600);
         }, duration + 200);
     }
 }

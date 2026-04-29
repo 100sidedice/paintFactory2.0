@@ -41,7 +41,11 @@
         "extra": {
             "level1": {"name": "level1", "type": "json"},
             "level2": {"name": "level2", "type": "json"},
-            "level3": {"name": "level3", "type": "json"}
+            "level3": {"name": "level3", "type": "json"},
+            "level4": {"name": "level4", "type": "json"},
+            "level5": {"name": "level5", "type": "json"},
+            "level6": {"name": "level6", "type": "json"},
+            "level7": {"name": "level7", "type": "json"}
         }
     }
 }
