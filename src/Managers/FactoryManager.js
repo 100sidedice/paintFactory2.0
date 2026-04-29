@@ -8,11 +8,12 @@ export default class FactoryManager {
         this.input = input;
         this.grid = this.generateGrid();
         this.items = {}
-        this.drawQueue = this.generateQueue();
+        this.drawQueue = [[],[],[],[]];
+        this.generateQueue();
 
         this.selectedCells = new Set(); // Store selected cells as "x,y" strings for easy add/remove/check
+        this.copiedCells = new Set(); // cells that were copied (rendered green)
         // test
-        this.selectedCells.add("2,3");
         this.selectMode = 'add'; // or 'remove' for toggling selection
         // if paste, we'll have some special logic
         this.pasting = false;
@@ -54,6 +55,7 @@ export default class FactoryManager {
             }
         }
         this.drawQueue = transformQueue;
+        if(this.drawQueue.length === 0) this.drawQueue = [[],[],[],[]]; // ensure we always have 4 queues for simplicity
     }
     draw(ctx) {
         const size = window.innerHeight / 9;
@@ -87,6 +89,8 @@ export default class FactoryManager {
         ctx.strokeStyle = 'cyan';
         ctx.lineWidth = size/32;
         for (const cell of this.selectedCells) {
+            if (this.copiedCells && this.copiedCells.has(cell)) ctx.strokeStyle = 'lime';
+            else ctx.strokeStyle = 'cyan';
             const [x, y] = cell.split(',').map(Number);
             ctx.strokeRect(x*size, y*size, size, size);
             ctx.strokeRect(x*size, y*size, size/4, size/4);
@@ -98,11 +102,35 @@ export default class FactoryManager {
         if (mode === "add") {
             this.selectedCells.add(key);
         } else if (mode === "remove") {
+            // only act if the cell was actually selected
+            if (!this.selectedCells.has(key)) return;
+            // spawn corner particles when an individual cell is removed
+            const size = window.innerHeight / 9;
+            const [cx, cy] = key.split(',').map(Number);
+            const wasCopied = (this.copiedCells && this.copiedCells.has(key));
+            const color = wasCopied ? 0x00FF00FF : 0x00FFFFFF;
+            this.ParticleManager.spawnAt(cx * size, cy * size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
+            this.ParticleManager.spawnAt(cx * size, cy * size + size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
+            this.ParticleManager.spawnAt(cx * size + size, cy * size + size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
+            this.ParticleManager.spawnAt(cx * size + size, cy * size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
             this.selectedCells.delete(key);
+            if (wasCopied) this.copiedCells.delete(key);
         }
     }
     clearSelection() {
+        // visual feedback: spawn corner particles for each removed cell
+        const size = window.innerHeight / 9;
+        for (const cell of this.selectedCells) {
+            const [x, y] = cell.split(',').map(Number);
+            const wasCopied = (this.copiedCells && this.copiedCells.has(cell));
+            const color = wasCopied ? 0x00FF00FF : 0x00FFFFFF;
+            this.ParticleManager.spawnAt(x * size, y * size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
+            this.ParticleManager.spawnAt(x * size, y * size + size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
+            this.ParticleManager.spawnAt(x * size + size, y * size + size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
+            this.ParticleManager.spawnAt(x * size + size, y * size, { count: 3, colors: [color], size: 20, speed: 200, life: 500 });
+        }
         this.selectedCells.clear();
+        if (this.copiedCells) this.copiedCells.clear();
     }
     copySelection(screenPos) {
         if (this.selectedCells.size === 0) return;
@@ -111,23 +139,87 @@ export default class FactoryManager {
             const [x, y] = cell.split(',').map(Number);
             const machine = this.getMachine(x, y);
             if (machine) {
-                selectedMachines.push({ x, y, type: machine.name, rot: machine.data.rot });
+                const color = (machine.data && machine.data.color !== undefined && machine.data.color !== null) ? machine.data.color : (machine.color !== undefined ? machine.color : null);
+                const acc = (machine._acc !== undefined) ? machine._acc : null;
+                const cnt = (machine._count !== undefined) ? machine._count : null;
+                selectedMachines.push({ x, y, type: machine.name, rot: machine.data.rot, color, _acc: acc, _count: cnt });
             }
         }
         this.clipboard = { machines: selectedMachines };
-        // visual feedback
-        this.ParticleManager.spawnAt(screenPos.x, screenPos.y, { count: 50, colors: [0x00FFFFFF], size: 20, speed: 200, life: 500 });
-        // set clipboard origin (the grid cell mouse was over)
-        this.clipPos = { x: screenPos.x/ window.innerHeight * 9, y: screenPos.y / window.innerHeight * 9 };
+        // mark copied cells so they're rendered green (no blue particle effect here)
+        this.copiedCells = new Set(this.selectedCells);
+        // set clipboard origin as grid cell coordinates (floor to snap to grid)
+        const size = window.innerHeight / 9;
+        this.clipPos = { x: Math.floor(screenPos.x / size), y: Math.floor(screenPos.y / size) };
+    }
+    cutSelection(screenPos) {
+        this.copySelection(screenPos);
+        for (const cell of this.selectedCells) {
+            const [x, y] = cell.split(',').map(Number);
+            this.removeMachine(x, y);
+        }
     }
     pastePreview(ctx, screenPos) {
         if (!this.clipboard) return;
         const size = window.innerHeight / 9;
-        const offsetX = screenPos.x - size/2;
-        const offsetY = screenPos.y - size/2;
-        for (const m of this.clipboard.machines) {
+        // base grid cell under cursor
+        const baseGridX = Math.floor(screenPos.x / size);
+        const baseGridY = Math.floor(screenPos.y / size);
+        const offsetX = baseGridX * size + size/2;
+        const offsetY = baseGridY * size + size/2;
+
+        // iterate top-left -> bottom-right, left-to-right
+        const machines = (this.clipboard.machines || []).slice().sort((a, b) => {
+            if (a.y === b.y) return a.x - b.x;
+            return a.y - b.y;
+        });
+
+        // track tentative usage so preview accounts for multiple copies in clipboard
+        const usedCounts = {}; // type -> used
+        const usedSpawnerCounts = {}; // colorKey -> used
+
+        for (const m of machines) {
+            const gridX = baseGridX + (m.x - this.clipPos.x);
+            const gridY = baseGridY + (m.y - this.clipPos.y);
             const x = offsetX + (m.x - this.clipPos.x) * size;
             const y = offsetY + (m.y - this.clipPos.y) * size;
+            // determine if this machine would be placeable and why not
+            let canPlace = true;
+            let reason = null;
+            // bounds
+            if (!this.grid || gridX < 0 || gridY < 0 || gridX >= this.grid.length || gridY >= (this.grid[0]?.length || 0)) { canPlace = false; reason = 'out-of-bounds'; }
+            // occupancy
+            else if (this.grid[gridX] && this.grid[gridX][gridY]) { canPlace = false; reason = 'occupied'; }
+            // slot/limit checks via LevelManager -> SidebarManager
+            else if (this.levelManager && Array.isArray(this.levelManager.slots)) {
+                let foundIdx = -1;
+                let slotEl = null;
+                for (let i = 0; i < this.levelManager.slots.length; i++) {
+                    const s = this.levelManager.slots[i];
+                    try {
+                        const variants = JSON.parse(s.dataset.variants ?? '[]');
+                        if (variants && variants.indexOf(m.type) !== -1) { foundIdx = i; slotEl = s; break; }
+                    } catch (e) {
+                        // ignore parse errors
+                    }
+                }
+                if (foundIdx !== -1) {
+                    const baseType = (m.type || '').split('-')[0];
+                    if (baseType === 'spawner') {
+                        // prefer color stored in clipboard entry, otherwise fall back to slot's selected color
+                        const colorKey = (m.color !== undefined && m.color !== null) ? m.color : (slotEl?.dataset?.spawnerColor ?? null);
+                        const remaining = (this.levelManager.getSpawnerRemaining ? this.levelManager.getSpawnerRemaining(colorKey) : 0);
+                        const used = usedSpawnerCounts[String(colorKey)] || 0;
+                        if ((remaining - used) <= 0) { canPlace = false; reason = 'limit'; }
+                        else usedSpawnerCounts[String(colorKey)] = used + 1;
+                    } else {
+                        const remaining = this.levelManager.getSlotRemaining(foundIdx);
+                        const used = usedCounts[m.type] || 0;
+                        if ((remaining - used) <= 0) { canPlace = false; reason = 'limit'; }
+                        else usedCounts[m.type] = used + 1;
+                    }
+                }
+            }
             // Draw a semi-transparent preview of the machine at (x,y) with rotation m.rot
             const img = this.AssetManager.get('machines-image');
             if (!img) continue;
@@ -142,6 +234,131 @@ export default class FactoryManager {
             ctx.globalAlpha = 0.5; // semi-transparent preview
             ctx.drawImage(img, sx, sy, tw, th, -size/2, -size/2, size, size);
             ctx.restore();
+            // if not placeable, tint by reason: occupied/out-of-bounds -> red, limit -> orange
+            if (!canPlace) {
+                ctx.save();
+                const color = (reason === 'limit') ? '#FFA50044' : '#FF000044';
+                ctx.fillStyle = color;
+                ctx.fillRect(x - size/2, y - size/2, size, size);
+                ctx.restore();
+            }
+        }
+    }
+
+    // Clear the copied (green) selection, leaving normal selection intact (they'll render blue)
+    clearCopiedSelection() {
+        this.copiedCells = new Set();
+    }
+
+    // Remove a specific cell from the copied set (uncopy it)
+    uncopyCell(x, y) {
+        const key = `${x},${y}`;
+        if (this.copiedCells && this.copiedCells.has(key)) this.copiedCells.delete(key);
+    }
+
+    // Attempt to paste clipboard at a grid origin (gridX, gridY).
+    // Returns an object { placed: number, failed: Array<{type,x,y,reason}> }
+    pasteAt(gridX, gridY) {
+        if (!this.clipboard || !Array.isArray(this.clipboard.machines)) return { placed: 0, failed: [] };
+        const size = window.innerHeight / 9;
+        const w = this.grid.length;
+        const h = this.grid[0]?.length || 0;
+        // determine machines in stable order
+        const machines = this.clipboard.machines.slice().sort((a, b) => {
+            if (a.y === b.y) return a.x - b.x;
+            return a.y - b.y;
+        });
+        const placed = [];
+        const failed = [];
+        const usedCounts = {};
+        const usedSpawnerCounts = {};
+
+        // First pass: determine which machines can be placed using same rules as preview
+        const canPlaceList = [];
+        for (const m of machines) {
+            const tx = gridX + (m.x - this.clipPos.x);
+            const ty = gridY + (m.y - this.clipPos.y);
+            let canPlace = true;
+            let reason = null;
+            if (tx < 0 || ty < 0 || tx >= w || ty >= h) { canPlace = false; reason = 'out-of-bounds'; }
+            else if (this.grid[tx] && this.grid[tx][ty]) { canPlace = false; reason = 'occupied'; }
+            else if (this.levelManager && Array.isArray(this.levelManager.slots)) {
+                let slotEl = null;
+                let foundIdx = -1;
+                for (let i = 0; i < this.levelManager.slots.length; i++) {
+                    const s = this.levelManager.slots[i];
+                    const variants = JSON.parse(s.dataset.variants ?? '[]');
+                    if (variants && variants.indexOf(m.type) !== -1) { slotEl = s; foundIdx = i; break; }
+                }
+                if (foundIdx !== -1 && slotEl) {
+                    const base = (m.type || '').split('-')[0];
+                    if (base === 'spawner') {
+                        const colorKey = (m.color !== undefined && m.color !== null) ? m.color : (slotEl?.dataset?.spawnerColor ?? null);
+                        const remaining = (this.levelManager.getSpawnerRemaining ? this.levelManager.getSpawnerRemaining(colorKey) : 0);
+                        const used = usedSpawnerCounts[String(colorKey)] || 0;
+                        if ((remaining - used) <= 0) { canPlace = false; reason = 'limit'; }
+                        else usedSpawnerCounts[String(colorKey)] = used + 1;
+                    } else {
+                        const remaining = this.levelManager.getSlotRemaining(foundIdx);
+                        const used = usedCounts[m.type] || 0;
+                        if ((remaining - used) <= 0) { canPlace = false; reason = 'limit'; }
+                        else usedCounts[m.type] = used + 1;
+                    }
+                }
+            }
+            canPlaceList.push({ m, tx, ty, canPlace, reason });
+        }
+
+        // Second pass: actually place those allowed
+        for (const item of canPlaceList) {
+            const { m, tx, ty, canPlace, reason } = item;
+            if (!canPlace) { failed.push({ type: m.type, x: tx, y: ty, reason }); continue; }
+            const placedMachine = this.addMachine(m.type, tx, ty, m.rot || 0);
+            if (placedMachine) {
+                // restore spawner color from clipboard if present
+                if (m.color !== undefined && m.color !== null) {
+                    placedMachine.data = placedMachine.data || {};
+                    placedMachine.data.color = m.color;
+                    placedMachine.color = m.color;
+                }
+                // restore internal timing state for spawners if available
+                if (m._acc !== undefined && m._acc !== null) {
+                    placedMachine._acc = m._acc;
+                }
+                if (m._count !== undefined && m._count !== null) {
+                    placedMachine._count = m._count;
+                }
+                placed.push({ machine: placedMachine, x: tx, y: ty });
+            }
+            else failed.push({ type: m.type, x: tx, y: ty, reason: 'failed-to-create' });
+        }
+
+        // refresh sidebar counts if available
+        this.levelManager.sidebarManager._refreshAllSlots(); 
+        // auto-select placed machines
+        if (placed && placed.length > 0) {
+            // clear previous selection so its removal particles are shown
+            if (this.selectedCells && this.selectedCells.size > 0) this.clearSelection();
+            this.selectedCells = new Set(placed.map(p => `${p.x},${p.y}`));
+        }
+
+        return { placed: placed.length, failed };
+    }
+
+    // Rotate clipboard selection 90deg clockwise around this.clipPos
+    rotateClipboard(clockwise = true) {
+        if (!this.clipboard || !Array.isArray(this.clipboard.machines)) return;
+        const dir = clockwise ? 1 : -1; // 1 => +90deg
+        for (const m of this.clipboard.machines) {
+            const relX = m.x - this.clipPos.x;
+            const relY = m.y - this.clipPos.y;
+            // rotate 90deg clockwise: (x,y) -> (-y, x)
+            let nx, ny;
+            if (dir === 1) { nx = -relY; ny = relX; }
+            else { nx = relY; ny = -relX; }
+            m.x = this.clipPos.x + nx;
+            m.y = this.clipPos.y + ny;
+            m.rot = (((m.rot || 0) + (dir * 90)) % 360 + 360) % 360;
         }
     }
     pause() {
@@ -170,6 +387,7 @@ export default class FactoryManager {
             }
         }
         // Update items
+        if(this.paused) return; // skip item updates when paused
         const size = window.innerHeight / 9;
         for (const itemId in this.items) {
             const it = this.items[itemId];
@@ -244,6 +462,25 @@ export default class FactoryManager {
             machine.data[prop] = value;
         }
         this.generateQueue(); // Regenerate draw queue if properties affect drawing (like rotation)
+    }
+
+    // Rotate all machines in the current selection by `rotateAmount` degrees (typically ±90).
+    rotateSelection(rotateAmount) {
+        if (!this.selectedCells || this.selectedCells.size === 0) return;
+        for (const cell of Array.from(this.selectedCells)) {
+            const [x, y] = cell.split(',').map(Number);
+            if (Number.isNaN(x) || Number.isNaN(y)) continue;
+            const machine = this.getMachine(x, y);
+            if (!machine) continue;
+            const cur = parseInt(machine.data?.rot ?? 0, 10) || 0;
+            const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
+            this.setMachineProperty(x, y, 'rot', newRot);
+            if (typeof machine.rotate === 'function') {
+                try { machine.rotate(rotateAmount); } catch (e) { }
+            }
+        }
+        // regenerate draw queue to ensure drawing order respects new rotations
+        this.generateQueue();
     }
     getMachineProperty(x,y,prop) {
         const machine = this.grid[x][y];

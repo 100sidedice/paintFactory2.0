@@ -39,8 +39,9 @@
         "name": "Levels",
         "type": "folder",
         "extra": {
-            "level1": {"name": "level1"},
-            "level2": {"name": "level2"}
+            "level1": {"name": "level1", "type": "json"},
+            "level2": {"name": "level2", "type": "json"},
+            "level3": {"name": "level3", "type": "json"}
         }
     }
 }

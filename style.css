@@ -12,6 +12,10 @@ canvas {
     /* keep pointer events so canvas still receives input where it is visible */
     pointer-events: auto;
     image-rendering: pixelated;
+    /** can you prevent default right click menu */
+    
+
+    user-select: none; /* prevent text selection on drag */
 }
 #machine_sidebar {
     position: fixed;
@@ -27,6 +31,51 @@ canvas {
 
     z-index: 10;
 }
+
+/* Goal sidebar on the right showing goal swatches and counts */
+/* scaled up ~1.5x */
+#goal_sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 23vh; /* 14.3 * 1.5 */
+    height: 100vh;
+    background-color: #1b1b1bFF;
+    pointer-events: auto;
+    touch-action: auto;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    box-sizing: border-box;
+    
+}
+
+ #goal_sidebar .goal-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    color: #FFFFFFFF;
+}
+
+#goal_sidebar .goal-swatch { width: 48px; height: 48px; image-rendering: pixelated; }
+
+/* override global canvas rules for sidebar swatches (global `canvas` is fixed/centered) */
+#goal_sidebar .goal-swatch {
+    position: static;
+    transform: none;
+    left: auto;
+    top: auto;
+    display: block;
+    width: 48px;
+    height: 48px;
+}
+
+#goal_sidebar .goal-text { color: #FFFFFFFF; font-weight: 800; font-size: 24px; }
+
 .machine {
     --border_color: #00000066;
     border: 3px solid var(--border_color);
@@ -160,4 +209,61 @@ canvas {
     white-space: pre-wrap;
     line-height: 1.2;
     z-index: 1001;
+}
+
+#level-header {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    width: 100%;
+    height: 100px;
+    transform: translateX(-50%);
+    padding: 8px 0;
+    z-index: 50;
+    pointer-events: none; /* allow clicks to pass through */
+}
+#level-text {
+    position: absolute;
+    left: 55%;
+    transform: translateX(-50%);
+    top: 76px; /* positioned under the id */
+    display: block;
+    padding: 4px 8px;
+    
+    color: #00FF00CC;
+    font-size: 30px;
+    z-index: 51;
+    pointer-events: none;
+    text-shadow: #000000FF 0px 0px 8px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+}
+#level-id {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 14px; /* near top of header */
+    display: block;
+    padding: 4px 8px;
+    color: #FFFFFFCC;
+    font-size: 50px;
+    z-index: 51;
+    pointer-events: none;
+    text-shadow: #000000FF 0px 0px 8px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+}
+#funny-text {
+    position: fixed;
+    bottom: 0px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    color: #FFFFFFCC;
+    font-size: 30px;
+    white-space: nowrap; /* prevent wrapping */
+    z-index: 51;
+    pointer-events: none;
+    text-shadow: #000000FF 0px 0px 8px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }

@@ -1,26 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Paint factory</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <div id="debug-container" style="position: absolute; top: 10px; left: 10px; z-index:1000; max-height: 40vh; overflow: auto;">
-            <pre id="debug" style="margin:0; color: #FFFFFF; white-space: pre-wrap; font-family: monospace; font-size:12px;">-</pre>
-        </div>
-        <canvas id="Draw" width="800" height="600"></canvas>
-        <script src="./src/script.js" type="module"></script>
-        <script src="./src/debug.js" type="module"></script>
-        <!-- Game UI -->
-        <div id="machine_sidebar" class = "ui">
-            <div class="machine"></div>
-            <div class="machine"></div>
-            <div class="machine"></div>
-            <div class="machine"></div>
-            <div class="machine"></div>
-            <div class="machine"></div>
-            <div class="machine"></div>
-        </div>
-    </body>
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Paint Factory — Title</title>
+</head>
+<body>
+    <h1>Paint Factory</h1>
+    <button id="startBtn">Start</button>
+
+    <script>
+        document.getElementById('startBtn').addEventListener('click', function () {
+            window.location.href = 'levelSelect.html';
+        });
+    </script>
+</body>
 </html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Paint factory</title>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <div id="debug-container" style="position: absolute; top: 10px; left: 10px; z-index:1000; max-height: 40vh; overflow: auto;">
+            <pre id="debug" style="margin:0; color: #FFFFFF; white-space: pre-wrap; font-family: monospace; font-size:12px;">-</pre>
+        </div>
+        <canvas id="Draw" width="800" height="600"></canvas>
+        <script src="./src/script.js" type="module"></script>
+        <script src="./src/debug.js" type="module"></script>
+        <!-- Game UI -->
+        <div id="machine_sidebar" class = "ui">
+            <div class="machine"></div>
+            <div class="machine"></div>
+            <div class="machine"></div>
+            <div class="machine"></div>
+            <div class="machine"></div>
+            <div class="machine"></div>
+            <div class="machine"></div>
+        </div>
+        <aside id="goal_sidebar" class="ui">
+            <!-- goal entries populated dynamically -->
+        </aside>
+        <header id = "level-header">
+            <h1 id="level-id">Level 1</h1>
+            <h2 id="level-text">Random super long text to test that this area is big enough</h2>
+        </header>
+        <footer id="funny-text">Random super long text to test that this area is big enough</footer>
+
+    </body>
+</html>

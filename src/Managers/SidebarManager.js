@@ -13,6 +13,8 @@ export default class SidebarManager {
         this.slots = [];
         this.selectedIndex = 0;
         this.lastRotate = performance.now();
+        this.lastRotateDir = 1;
+        this.lastRotateTarget = null; // 'slot' | 'machine' | 'selection'
         this._lastTap = { time: 0, x: -1, y: -1 };
         this._iconAnimReq = null;
     }
@@ -122,10 +124,12 @@ export default class SidebarManager {
 
         icon.addEventListener('wheel', (e) => {
             if (performance.now() - this.lastRotate < 150) return;
-            this.lastRotate = performance.now();
             e.preventDefault();
             const deltaY = e.deltaY;
             const delta = deltaY > 0 ? 90 : -90;
+            this.lastRotate = performance.now();
+            this.lastRotateDir = (delta > 0) ? 1 : -1;
+            this.lastRotateTarget = 'slot';
             let anim = parseInt(slot.dataset.animRot ?? '0', 10) || 0;
             anim = anim + delta;
             slot.dataset.animRot = String(anim);
@@ -316,8 +320,18 @@ export default class SidebarManager {
                     const isSel = sel && sel.toLowerCase() === color.toLowerCase();
                     colorEl.classList.toggle('selected', isSel);
                     if (isSel) {
-                        colorEl.style.textShadow = `0 0 6px ${color}`;
-                        colorEl.style.filter = `drop-shadow(0 0 6px ${color})`;
+                            // choose white glow for very dark colors (sum RGB <= 256)
+                            const glowColor = (() => {
+                                try {
+                                    const v = intHex(color) >>> 0;
+                                    const r = (v >>> 24) & 0xFF;
+                                    const g = (v >>> 16) & 0xFF;
+                                    const b = (v >>> 8) & 0xFF;
+                                    return (r + g + b <= 256) ? '#FFFFFFFF' : color;
+                                } catch (e) { return color; }
+                            })();
+                            colorEl.style.textShadow = `0 0 6px ${glowColor}`;
+                            colorEl.style.filter = `drop-shadow(0 0 6px ${glowColor})`;
                     } else {
                         colorEl.style.textShadow = '';
                         colorEl.style.filter = '';
@@ -382,8 +396,17 @@ export default class SidebarManager {
                         const isSel = sel && sel.toLowerCase() === color.toLowerCase();
                         colorEl.classList.toggle('selected', isSel);
                         if (isSel) {
-                            colorEl.style.textShadow = `0 0 6px ${color}`;
-                            colorEl.style.filter = `drop-shadow(0 0 6px ${color})`;
+                            const glowColor = (() => {
+                                try {
+                                    const v = intHex(color) >>> 0;
+                                    const r = (v >>> 24) & 0xFF;
+                                    const g = (v >>> 16) & 0xFF;
+                                    const b = (v >>> 8) & 0xFF;
+                                    return (r + g + b <= 256) ? '#FFFFFFFF' : color;
+                                } catch (e) { return color; }
+                            })();
+                            colorEl.style.textShadow = `0 0 6px ${glowColor}`;
+                            colorEl.style.filter = `drop-shadow(0 0 6px ${glowColor})`;
                         } else {
                             colorEl.style.textShadow = '';
                             colorEl.style.filter = '';
@@ -508,6 +531,7 @@ export default class SidebarManager {
         }, ["select"], 3);
 
         // Shift+right = remove select
+        // require keyboard held + mouse press so action fires immediately while Shift is down
         this.input.addBindings([
             ["keyboard", "ShiftLeft", "held"],
             ["mouse", "right", "held"]
@@ -525,13 +549,44 @@ export default class SidebarManager {
         this.input.addBinding('keyboard', 'KeyC', 'press', () => {
             this.factoryManager.copySelection(this.input.getPos());
         }, ["select"], 1);
+
+        this.input.addBinding('keyboard', 'KeyX', 'press', () => {
+            this.factoryManager.cutSelection(this.input.getPos());
+            this.factoryManager.clearSelection();
+        }, ["select"], 1);
+
         // v = paste selection
         this.input.addBinding('keyboard', 'KeyV', 'press', () => {
             this.factoryManager.pasting = true;
         }, ["select"], 1);
 
+        // While pasting: left = confirm, right = cancel. High priority to avoid other handlers.
+        this.input.addBinding('mouse', 'left', 'press', () => {
+            if (!this.factoryManager) return;
+            if (!this.factoryManager.pasting) return;
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            // attempt paste
+            const res = this.factoryManager.pasteAt(gridX, gridY);
+            this.factoryManager.pasting = false;
+            // block until mouse release to prevent other place handlers
+            this.input.block(3);
+        }, ["paste"], 10, ()=>{
+            return this.factoryManager.pasting;
+        });
+
+        this.input.addBinding('mouse', 'right', 'press', () => {
+            if (!this.factoryManager) return;
+            if (!this.factoryManager.pasting) return;
+            this.factoryManager.pasting = false;
+            this.input.block(3);
+        }, ["paste"], 10);
+
         this.input.addBinding('mouse', 'left', 'held', () => {
             if (!this.factoryManager) return;
+            // when shift select is active, do not place while holding left
+            if (this.input.active.has('keyboard:ShiftLeft:press') || this.input.active.has('keyboard:ShiftRight:press')) return;
             if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) return;
             const slot = this.slots[this.selectedIndex];
             const type = slot.dataset.machineType;
@@ -567,7 +622,7 @@ export default class SidebarManager {
                 const cy = (gridY + 1/2) * size;
                 this.particleManager.spawnAt(cx, cy, { count: 20, colors: [0xFBFF00FF, 0xFF5144FF, 0xFFA600FF], size: 5, speed: 500, life: 900 });
             }
-        }, ["world-edit"]);
+        }, ["world-edit"], 1);
 
         this.input.addBinding('mouse', 'left', 'press', () => {
             if (!this.factoryManager) return;
@@ -645,6 +700,53 @@ export default class SidebarManager {
                 }
             }
         });
+        this.input.addBinding('keyboard', 'ControlLeft', 'held', () => {
+            if (!this.factoryManager) return;
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            if (gridX < 0 || gridY < 0) return;
+            const grid = this.factoryManager.grid;
+            if (gridX >= grid.length || gridY >= grid[0].length) return;
+            const machine = grid[gridX][gridY];
+            if (!machine) return;
+            const type = machine.name;
+            const rot = machine.data.rot;
+            if (!type) return;
+            for (let i = 0; i < this.slots.length; i++) {
+                const slot = this.slots[i];
+                const variants = JSON.parse(slot.dataset.variants ?? '[]');
+                const idx = variants.indexOf(type);
+                if (idx !== -1) {
+                    this.setSelection(i);
+                    slot.dataset.variantIndex = String(idx);
+                    slot.dataset.machineType = variants[idx];
+                    slot.dataset.rot = String(rot);
+                    slot.dataset.animRot = String(rot);
+                    const icon = slot.querySelector('canvas.machine-icon');
+                    this._drawIcon(icon, variants[idx]);
+                    icon.style.setProperty('--rot-anim', `${rot}deg`);
+                    icon.style.setProperty('--rot', `${rot}deg`);
+                    const indicator = slot.querySelector('.variant-indicator');
+                    if (indicator) {
+                        const dots = Array.from(indicator.children);
+                        dots.forEach((d, j) => d.classList.toggle('active', j === idx));
+                    }
+                    this._updateSlotCountDisplay(slot);
+                    if (type.split('-')[0] === 'spawner') {
+                        const chosen = (machine.data && machine.data.color) || machine.color || null;
+                        if (chosen !== null && chosen !== undefined) {
+                            const css = stringHex(chosen);
+                            slot.dataset.spawnerColor = css;
+                            const list = slot.querySelector('.spawner-color-list');
+                            const entries = Array.from(list.querySelectorAll('.spawner-color'));
+                            entries.forEach(el => el.classList.toggle('selected', el.dataset.color === css));
+                        }
+                    }
+                    return;
+                }
+            }
+        });
 
         this.input.addBinding('mouse', 'right', 'held', () => {
             if (!this.slots.some(s => s.dataset.machineType === 'delete')) return;
@@ -660,22 +762,115 @@ export default class SidebarManager {
                 this._refreshAllSlots();
             }
             this.factoryManager.clearSelection();
-        }, ["delete", "world-edit"]);
+        }, ["delete", "world-edit"], 1);
+
+        // Shift+wheel -> always rotate the selected slot (even when hovering a tile)
+        this.input.addBindings([
+            ["keyboard", "ShiftLeft", "held"],
+            ["wheel", "scroll", "press"]
+        ], (payload) => {
+            if (performance.now() - this.lastRotate < 200) return;
+            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            this.lastRotate = performance.now();
+            this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
+            this.lastRotateTarget = 'slot';
+            const sel = this.slots[this.selectedIndex];
+            if (!sel) return;
+            let anim = parseInt(sel.dataset.animRot ?? '0', 10) || 0;
+            anim = anim + rotateAmount;
+            sel.dataset.animRot = String(anim);
+            const icon = sel.querySelector('canvas.machine-icon');
+            if (icon) icon.style.setProperty('--rot-anim', `${anim}deg`);
+            const cur = parseInt(sel.dataset.rot ?? '0', 10) || 0;
+            const next = (cur + rotateAmount + 360) % 360;
+            sel.dataset.rot = String(next);
+            this.input.block(3);
+            setTimeout(() => {this.input.unblock();}, 120);
+        }, ["select"], 2);
+
+        this.input.addBindings([
+            ["keyboard", "ShiftRight", "held"],
+            ["wheel", "scroll", "press"]
+        ], (payload) => {
+            if (performance.now() - this.lastRotate < 200) return;
+            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            this.lastRotate = performance.now();
+            this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
+            this.lastRotateTarget = 'slot';
+            const sel = this.slots[this.selectedIndex];
+            if (!sel) return;
+            let anim = parseInt(sel.dataset.animRot ?? '0', 10) || 0;
+            anim = anim + rotateAmount;
+            sel.dataset.animRot = String(anim);
+            const icon = sel.querySelector('canvas.machine-icon');
+            if (icon) icon.style.setProperty('--rot-anim', `${anim}deg`);
+            const cur = parseInt(sel.dataset.rot ?? '0', 10) || 0;
+            const next = (cur + rotateAmount + 360) % 360;
+            sel.dataset.rot = String(next);
+            this.input.block(3);
+            setTimeout(() => {this.input.unblock();}, 120);
+        }, ["select"], 2);
 
         this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
             if (performance.now() - this.lastRotate < 200) return;
+            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
             this.lastRotate = performance.now();
+            this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
+            this.lastRotateTarget = 'machine';
             const gridPos = this.input.getPos();
             const gridX = Math.floor(gridPos.x / window.innerHeight * 9);
             const gridY = Math.floor(gridPos.y / window.innerHeight * 9);
-            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
-            const cur = parseInt(this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0, 10) || 0;
-            const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
-            this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
-            this.factoryManager.getMachine(gridX, gridY)?.rotate(rotateAmount);
-        }, []);
+            // if hovering a machine, rotate that machine
+            const grid = this.factoryManager && this.factoryManager.grid;
+            let hoveredMachine = null;
+            if (grid && gridX >= 0 && gridY >= 0 && gridX < grid.length && gridY < (grid[0]?.length || 0)) hoveredMachine = grid[gridX][gridY];
+            if (hoveredMachine) {
+                const cur = parseInt(this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0, 10) || 0;
+                const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
+                this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
+                if (typeof hoveredMachine.rotate === 'function') hoveredMachine.rotate(rotateAmount);
+                return;
+            }
+            // otherwise, rotate the currently selected slot (like wheel on slot icon)
+            const sel = this.slots[this.selectedIndex];
+            if (!sel) return;
+            // animate rotate
+            let anim = parseInt(sel.dataset.animRot ?? '0', 10) || 0;
+            anim = anim + rotateAmount;
+            sel.dataset.animRot = String(anim);
+            const icon = sel.querySelector('canvas.machine-icon');
+            if (icon) icon.style.setProperty('--rot-anim', `${anim}deg`);
+            const cur = parseInt(sel.dataset.rot ?? '0', 10) || 0;
+            const next = (cur + rotateAmount + 360) % 360;
+            sel.dataset.rot = String(next);
+        }, [], 0);
 
-        this.input.addBinding('keyboard', 'KeyR', 'press', () => { this.factoryManager.resetFactory(); });
+        // rotate selection when there is an active selection (higher priority)
+        this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
+            if (performance.now() - this.lastRotate < 200) return;
+            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            this.lastRotate = performance.now();
+            this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
+            if (this.factoryManager) {
+                this.factoryManager.rotateSelection(rotateAmount);
+                // block lower-priority handlers while rotate completes
+                this.input.block(3);
+                // wheel has no matching 'release' event to clear temporary block,
+                // so clear it shortly after to avoid permanently blocking input.
+                setTimeout(() => {this.input.unblock();}, 120);
+            }
+        }, [], 1, () => {
+            return !!(this.factoryManager && this.factoryManager.selectedCells && this.factoryManager.selectedCells.size > 0);
+        });
+
+        // KeyR: rotate clipboard when pasting, otherwise reset factory
+        this.input.addBinding('keyboard', 'KeyR', 'press', () => {
+            if (this.factoryManager && this.factoryManager.pasting) {
+                this.factoryManager.rotateClipboard(true);
+            } else if (this.factoryManager) {
+                this.factoryManager.resetFactory();
+            }
+        }, [], 1);
         this.input.addBinding('keyboard', 'Space', 'press', () => { this.factoryManager.toggle(); });
     }
 }

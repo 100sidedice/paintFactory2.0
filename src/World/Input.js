@@ -68,7 +68,17 @@ export default class Input {
         return Array.from(this.keyMap.keys()).some(k => k === key);
     }
     hasBindingPrefix(prefix) {
-        return Array.from(this.keyMap.keys()).some(k => k.startsWith(prefix));
+        // check atomic bindings
+        if (Array.from(this.keyMap.keys()).some(k => k.startsWith(prefix))) return true;
+        // also check composite bindings parts
+        if (this.compositeBindings && this.compositeBindings.length > 0) {
+            for (const cb of this.compositeBindings) {
+                for (const p of cb.parts) {
+                    if (p.key && p.key.startsWith(prefix)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     // remove all bindings that include the given class name
@@ -129,6 +139,9 @@ export default class Input {
         // set current trigger so handlers can call block() to auto-bind to this trigger
         this._currentTriggerKey = key;
         try {
+            // Check composite bindings first so they can call block() and prevent
+            // lower-priority atomic handlers from running when desired.
+            this._checkCompositeBindings(key, arg);
             if (hasKey) {
                 const handlers = this.keyMap.get(key).slice();
                 handlers.sort((a,b)=>b.priority - a.priority);
@@ -143,8 +156,6 @@ export default class Input {
                     }
                 }
             }
-            // always check composite bindings even if there are no atomic handlers for this key
-            this._checkCompositeBindings(key, arg);
         } finally {
             this._currentTriggerKey = null;
         }
@@ -280,6 +291,10 @@ export default class Input {
         window.addEventListener('keydown', (e) => {
             const keyBase = `keyboard:${e.code}`;
             const pressKey = `${keyBase}:press`;
+            // prevent browser default if we have any binding (atomic or composite) for this key
+            if (this.hasBindingPrefix(`${keyBase}:`)) {
+                try { e.preventDefault(); } catch (err) { /* ignore */ }
+            }
             // ignore auto-repeat spam -- only handle first keydown until keyup
             if (this.active.has(pressKey)) return;
             // mark active and start hold detection
@@ -331,9 +346,9 @@ export default class Input {
             const keyBase = `mouse:${button}`;
             const pressKey = `${keyBase}:press`;
             const heldKey = `${keyBase}:held`;
-            // prevent default context-menu / browser action if we have handlers for this mouse button
-            if (button === 'right' && this.hasBindingPrefix(`mouse:${button}:`)) {
-                e.preventDefault();
+            // prevent default browser action if we have handlers for this mouse button
+            if (this.hasBindingPrefix(`${keyBase}:`)) {
+                try { e.preventDefault(); } catch (err) { /* ignore */ }
             }
             // prevent double mousedown handling if already active
             if (this.active.has(pressKey)) return;
@@ -392,6 +407,10 @@ export default class Input {
 
         // touch events (supports multiple touches)
         window.addEventListener('touchstart', (e) => {
+            // prevent browser default (scroll/zoom) when touch bindings exist
+            if (this.hasBindingPrefix('touch:')) {
+                try { e.preventDefault(); } catch (err) { /* ignore */ }
+            }
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 const id = t.identifier;
@@ -426,6 +445,10 @@ export default class Input {
         }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
+            // prevent browser default when touch bindings exist
+            if (this.hasBindingPrefix('touch:')) {
+                try { e.preventDefault(); } catch (err) { /* ignore */ }
+            }
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 const id = t.identifier;
@@ -441,6 +464,10 @@ export default class Input {
         }, { passive: false });
 
         window.addEventListener('touchend', (e) => {
+            // prevent browser default when touch bindings exist
+            if (this.hasBindingPrefix('touch:')) {
+                try { e.preventDefault(); } catch (err) { /* ignore */ }
+            }
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 const id = t.identifier;

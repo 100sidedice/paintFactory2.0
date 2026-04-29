@@ -74,3 +74,22 @@ export function setChannel(color, channel, value, type = 'string') {
     const result = ((v & mask) | ((byte & 0xFF) << shift)) >>> 0;
     return type === '32' ? result : stringHex(result);
 }
+
+// Return a new 32-bit color integer by offsetting RGB channels randomly by up to
+// `pct` fraction of 255. `pct` may be 0..1 (e.g. 0.15 = ±15% of 255). Alpha is preserved.
+export function offsetIntHex(color, pct = 0.12) {
+    const v = intHex(color) >>> 0;
+    const r = (v >>> 24) & 0xFF;
+    const g = (v >>> 16) & 0xFF;
+    const b = (v >>> 8) & 0xFF;
+    const a = v & 0xFF;
+    const amp = Math.round(Math.max(0, Math.min(1, Number(pct) || 0)) * 255);
+    function rndChannel(base) {
+        const delta = Math.floor((Math.random() * 2 - 1) * amp);
+        return Math.max(0, Math.min(255, base + delta));
+    }
+    const nr = rndChannel(r);
+    const ng = rndChannel(g);
+    const nb = rndChannel(b);
+    return (((nr & 0xFF) << 24) | ((ng & 0xFF) << 16) | ((nb & 0xFF) << 8) | (a & 0xFF)) >>> 0;
+}

@@ -1,0 +1,28 @@
+{  
+    "Header": "Level 3: Red & Blue make Purple!",
+    "Description": "Create a path to sell 20 purple dye",
+    "funny": "You can scroll to rotate machines.",
+    "Hints": [
+        "Click a machine in the sidebar to select it, then click on the grid to place it",
+        "Right click a machine in the sidebar to see it's description",
+        "Make a path from the spawner to the goal using conveyor belts"
+    ],
+    "Placed": {
+    },
+    "Goal": {
+        "#FF00FFFF": 20
+    },
+    "Machines":[
+        ["delete", 1],
+        ["spawner", 4],
+        ["conveyor", 20],
+        ["conveyor-left", 5],
+        ["conveyor-right", 5],
+        ["mixer", 1],
+        ["seller", 1]
+    ],
+    "spawner-items": [
+        {"color": "#0000FFFF", "count": 2},
+        {"color": "#FF0000FF", "count": 2}
+    ]
+}

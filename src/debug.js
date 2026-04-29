@@ -1,5 +1,6 @@
 const debugEl = document.querySelector('#debug');
 
+
 const logToDebug = (title, message, path, line = 'N/A') => {
   if (!debugEl) return;
   
@@ -89,8 +90,6 @@ document.addEventListener('keydown', function(event) {
     if (event.key === 'F9') {
         // Prevent the browser's default F9 behavior if necessary
         event.preventDefault(); 
-        
-        console.log('F9 key was pressed');
         //toggle debug overlay
         if (debugEl) {
             if (debugEl.style.display === 'none') {
@@ -101,3 +100,4 @@ document.addEventListener('keydown', function(event) {
         }
     }
 });
+debugEl.style.display = 'none'; // start hidden
