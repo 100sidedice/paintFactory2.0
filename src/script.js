@@ -40,23 +40,34 @@ class Program {
         this.FactoryManager = new FactoryManager(this.dataManager, this.assetManager, this.ParticleManager, this.input);
         // Initialize LevelManager which will wire input bindings for selection and placing/removing machines
         this.LevelManager = new LevelManager(this.assetManager, this.input, this.FactoryManager, this.dataManager, this.ParticleManager);
-        // Determine level from URL params: numeric -> 'levelN', otherwise use string key
+        // Determine level: prefer saved value in localStorage (`pf_selectedLevel`).
+        // Fallback to URL `?level=` param for compatibility, then to 'level1'.
         const params = new URLSearchParams(window.location.search);
         const lp = params.get('level');
-        let levelKey = 'level1';
-        if (lp !== null) {
-            const n = parseInt(lp, 10);
-            if (!Number.isNaN(n) && n > 0) levelKey = 'level' + n;
-            else if (typeof lp === 'string' && lp.length > 0) levelKey = lp;
+        let levelKey = null;
+        const normalizeLevel = (raw) => {
+            if (raw === null) return null;
+            const n = parseInt(raw, 10);
+            if (!Number.isNaN(n) && n > 0) return 'level' + n;
+            if (typeof raw === 'string' && raw.length > 0) return raw;
+            return null;
+        };
+        try {
+            const saved = localStorage.getItem('pf_selectedLevel');
+            levelKey = normalizeLevel(saved);
+        } catch (e) {
+            levelKey = null;
         }
-        // Ensure the requested level key actually exists in loaded Levels.
-        // If it doesn't, fallback to 'level1'. This prevents init from
-        // receiving a non-existent key (which previously logged an error).
+        if (!levelKey && lp !== null) {
+            levelKey = normalizeLevel(lp);
+        }
+        if (!levelKey) levelKey = 'level1';
         const levels = this.assetManager.get('Levels') || {};
         if (!levels[levelKey]) {
             console.warn(`Requested level '${levelKey}' not found; falling back to 'level1'`);
             levelKey = 'level1';
         }
+        try { localStorage.setItem('pf_selectedLevel', levelKey); } catch (e) {}
         this.LevelManager.init(levelKey);
         // Start the main loop
         requestAnimationFrame(this.loop.bind(this));        

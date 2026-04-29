@@ -28,7 +28,8 @@
                 btn.textContent = level;
                 btn.addEventListener('click', (function (n) {
                 return function () {
-                    window.location.href = 'game.html?level=' + n;
+                    try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
+                    window.location.href = 'game.html';
                 };
                 })(level));
                 td.appendChild(btn);

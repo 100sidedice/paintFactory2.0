@@ -232,7 +232,7 @@ export default class GoalManager {
             void overlay.offsetWidth;
             overlay.style.opacity = '1';
             overlay.addEventListener('transitionend', () => {
-                // determine numeric level index if possible
+                // determine numeric level index if possible, then persist it and navigate
                 let levelParam = this.levelManager?.currentLevelKey ?? '';
                 try {
                     const levels = this.levelManager?.assetManager?.get('Levels') || {};
@@ -240,9 +240,15 @@ export default class GoalManager {
                     const idx = keys.indexOf(this.levelManager?.currentLevelKey);
                     if (idx !== -1) levelParam = idx + 1; // 1-based index used by levelSelect
                 } catch (e) {}
-                // navigate to win screen with level param
-                const target = `win.html?level=${encodeURIComponent(levelParam)}`;
-                window.location.href = target;
+                // persist resolved level into localStorage and navigate to win.html
+                try {
+                    let storeVal = null;
+                    if (typeof levelParam === 'number') storeVal = 'level' + levelParam;
+                    else if (typeof levelParam === 'string' && levelParam.length > 0) storeVal = levelParam;
+                    else storeVal = this.levelManager?.currentLevelKey || 'level1';
+                    localStorage.setItem('pf_selectedLevel', storeVal);
+                } catch (e) {}
+                window.location.href = 'win.html';
             }, { once: true });
         }, duration + 200);
     }

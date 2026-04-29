@@ -12,8 +12,19 @@
   <button id="levelSelectBtn">Level Select</button>
 
   <script>
-    // Parse the `level` query param. Supports numeric values (e.g. `2`) and keys like `level2`.
-    function parseLevelParam() {
+    // Determine current level. Prefer stored value in localStorage (`pf_selectedLevel`),
+    // fallback to the `?level=` URL param for compatibility.
+    function parseLevel() {
+      try {
+        const stored = localStorage.getItem('pf_selectedLevel');
+        if (stored) {
+          const n = parseInt(stored, 10);
+          if (!Number.isNaN(n) && String(n) === stored) return { raw: String(n), num: n };
+          const m = stored.match(/^level(\d+)$/i);
+          if (m) return { raw: stored, num: parseInt(m[1], 10) };
+          return { raw: stored, num: null };
+        }
+      } catch (e) {}
       const params = new URLSearchParams(location.search);
       const raw = params.get('level');
       if (raw === null) return { raw: null, num: null };
@@ -24,26 +35,31 @@
       return { raw: raw, num: null };
     }
 
-    const lp = parseLevelParam();
+    const lp = parseLevel();
 
     document.getElementById('levelSelectBtn').addEventListener('click', function () {
       location.href = 'levelSelect.html';
     });
 
     document.getElementById('retryBtn').addEventListener('click', function () {
-      if (lp.raw) location.href = 'game.html?level=' + lp.raw; else location.href = 'game.html';
+      try { if (lp.num) localStorage.setItem('pf_selectedLevel', 'level' + lp.num); else if (lp.raw) localStorage.setItem('pf_selectedLevel', lp.raw); } catch (e) {}
+      location.href = 'game.html';
     });
 
     document.getElementById('nextBtn').addEventListener('click', function () {
-      if (lp.num) location.href = 'game.html?level=' + (lp.num + 1);
-      else if (lp.raw) location.href = 'game.html?level=' + lp.raw;
-      else location.href = 'game.html';
+      try {
+        if (lp.num) localStorage.setItem('pf_selectedLevel', 'level' + (lp.num + 1));
+        else if (lp.raw) localStorage.setItem('pf_selectedLevel', lp.raw);
+      } catch (e) {}
+      location.href = 'game.html';
     });
 
     document.getElementById('prevBtn').addEventListener('click', function () {
-      if (lp.num && lp.num > 1) location.href = 'game.html?level=' + (lp.num - 1);
-      else if (lp.raw) location.href = 'game.html?level=' + lp.raw;
-      else location.href = 'game.html';
+      try {
+        if (lp.num && lp.num > 1) localStorage.setItem('pf_selectedLevel', 'level' + (lp.num - 1));
+        else if (lp.raw) localStorage.setItem('pf_selectedLevel', lp.raw);
+      } catch (e) {}
+      location.href = 'game.html';
     });
   </script>
 </body>
