@@ -3,6 +3,7 @@ import ParticleManager from "../src/Managers/ParticleManager.js";
 import AssetManager from "../src/Managers/AssetManager.js";
 import DataManager from "../src/Managers/DataManager.js";
 import FactoryManager from "../src/Managers/FactoryManager.js";
+import { intHex } from "../src/Helpers/colorHelpers.js";
 
 resizeCanvas('Draw');
 window.addEventListener('resize', () => resizeCanvas('Draw'));
@@ -28,6 +29,10 @@ let factory = null;
 // Edit this object to change the title screen factory. `placedRelative` is centered on the grid.
 const titleLayout = {
     Placed: {
+        "5.5": {
+            "type": "spawner #FFFFFFFF",
+            "rot": 90
+        },
         "2.4": "seller",
         "3.4": {
             "type": "conveyor",
@@ -57,10 +62,7 @@ const titleLayout = {
             "type": "spawner #FFFFFFFF",
             "rot": 270
         },
-        "5.5": {
-            "type": "spawner #FFFFFFFF",
-            "rot": 90
-        },
+        
         "6.1": "conveyor-right",
         "6.2": "conveyor",
         "6.3": {
@@ -170,36 +172,31 @@ async function initTitleBoard() {
 
     const w = factory.grid.length;
     const h = factory.grid[0]?.length || 0;
-    const cx = Math.floor(w / 2);
-    const cy = Math.floor(h / 2);
 
-    // Populate from `titleLayout` (supports absolute `Placed` map or `placedRelative` array)
-    // Absolute mapping like level JSON: keys are "x,y"
-    if (titleLayout.Placed && typeof titleLayout.Placed === 'object') {
-        for (const [k, v] of Object.entries(titleLayout.Placed)) {
-            const parts = k.split(',').map(n => parseInt(n, 10));
-            if (parts.length !== 2 || parts.some(Number.isNaN)) continue;
-            const [gx, gy] = parts;
-            const inst = factory.addMachine(v.type, gx, gy, v.rot || 0);
-            if (inst && v.color !== undefined && v.color !== null) { inst.data = inst.data || {}; inst.data.color = v.color; inst.color = v.color; }
-            if (inst && v._acc !== undefined) inst._acc = v._acc;
-            if (inst && v._count !== undefined) inst._count = v._count;
+    for (const [key, value] of Object.entries(titleLayout.Placed)) {
+        const parts = key.split('.')
+        const gx = Number(parts[0])+1;
+        const gy = Number(parts[1]);
+        // Normalize placement entry to object { type, rot, color, ... }
+        let m = {};
+        if (typeof value === 'string') {
+            const partsStr = value.split(' ');
+            m.type = partsStr[0];
+            if (partsStr.length > 1) m.color = intHex(partsStr[1]);
+        } else if (typeof value === 'object') {
+            // If object.type contains an inline color (e.g. "spawner #FFFFFFFF"), split it out
+            if (typeof value.type === 'string' && value.type.indexOf(' ') !== -1) {
+                const tparts = value.type.split(' ');
+                m.type = tparts[0];
+                if(tparts.length > 1) m.color = intHex(tparts[1]);
+            }
+            m = Object.assign({}, value, m);
         }
-    }
-
-    // Relative array centered on grid
-    if (Array.isArray(titleLayout.placedRelative)) {
-        for (const m of titleLayout.placedRelative) {
-            if (!m || !m.type) continue;
-            const gx = cx + (m.x || 0);
-            const gy = cy + (m.y || 0);
-            try {
-                const inst = factory.addMachine(m.type, gx, gy, m.rot || 0);
-                if (inst && m.color !== undefined && m.color !== null) { inst.data = inst.data || {}; inst.data.color = m.color; inst.color = m.color; }
-                if (inst && m._acc !== undefined) inst._acc = m._acc;
-                if (inst && m._count !== undefined) inst._count = m._count;
-            } catch (e) { /* ignore single-machine failures */ }
-        }
+        const resolvedType = (m.type || '').toString().trim();
+        const inst = factory.addMachine(resolvedType, gx, gy, m.rot || 0);
+        if (inst && m.color !== undefined && m.color !== null) { inst.data = inst.data || {}; inst.data.color = m.color; inst.color = m.color; }
+        if (inst && m._acc !== undefined) inst._acc = m._acc;
+        if (inst && m._count !== undefined) inst._count = m._count;
     }
 }
 
@@ -225,8 +222,8 @@ function update(delta){
 }
 
 function draw(){
-    ctx.fillStyle = '#111111FF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00000000';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     // draw factory (if ready) before particles so items appear above machines
     if (factory) factory.draw(ctx);
     particleManager.draw(ctx);

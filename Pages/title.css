@@ -2,7 +2,9 @@ body {
     margin: 0;
     padding: 0;
     overflow: hidden; /* prevent scrollbars from appearing when canvas is larger than viewport */
-    background-color: #FFFFFFFF;
+    background-image: url(../Assets/tilemaps/bg/idle.png);
+    background-size: 11.11vh 11.11vh;
+    image-rendering: pixelated;
 }
 canvas {
     position: fixed;
