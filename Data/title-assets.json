@@ -1,0 +1,20 @@
+{
+    "machines-image": {"path": "Assets/machines.png", "type": "image", "extra": "", "name": "machines-image"},
+    "machines-image-grayed": {"path": "Assets/machines-grayed.png", "type": "image", "extra": "", "name": "machines-image-grayed"},
+    "color": {"path": "Assets/color.png", "type": "image", "extra": "", "name": "color"},
+    "Machines": {
+        "path": "Machines",
+        "name": "Machines",
+        "type": "module-folder",
+        "extra": {
+            "Machine": {"name": "Machine"},
+            "conveyor": {"name": "conveyor"},
+            "conveyor-left": {"name": "conveyor-left"},
+            "conveyor-right": {"name": "conveyor-right"},
+            "conveyor-merge": {"name": "conveyor-merge"},
+            "conveyor-mergeright": {"name": "conveyor-mergeright"},
+            "spawner": {"name": "spawner"},
+            "seller": {"name": "seller"}
+        }
+    }
+}

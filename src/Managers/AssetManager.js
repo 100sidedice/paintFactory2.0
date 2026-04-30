@@ -53,23 +53,33 @@ export default class AssetManager {
                 const capitalize = (s) => s && s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s;
                 for (const [key, val] of Object.entries(extra)) {
                     const nameHint = (val && val.name) ? val.name : key;
-                    const candidates = [
-                        `/${path}/${nameHint}.json`,
-                        `/${path}/${nameHint}.png`,
-                        `/${path}/${nameHint}.jpg`,
-                        `/${path}/${key}.json`,
-                        `/${path}/${key}.png`,
-                        `/${path}/${key}.jpg`,
-                        `/${path}/${capitalize(key)}.json`,
-                        `/${path}/${capitalize(nameHint)}.json`
-                    ];
+                    const typeHint = (val && val.type) ? String(val.type).toLowerCase() : null;
+                    let candidates = [];
+                    // Prefer capitalized filenames to avoid lowercase probes on case-sensitive servers
+                    const capName = capitalize(nameHint);
+                    const capKey = capitalize(key);
+                    if (typeHint === 'json') {
+                        candidates = [`/${path}/${capName}.json`, `/${path}/${capKey}.json`];
+                    } else if (typeHint === 'image') {
+                        candidates = [`/${path}/${capName}.png`, `/${path}/${capName}.jpg`, `/${path}/${capKey}.png`, `/${path}/${capKey}.jpg`];
+                    } else if (typeHint === 'module' || typeHint === 'js' || typeHint === 'script') {
+                        candidates = [`/${path}/${capName}.js`, `/${path}/${capKey}.js`];
+                    } else {
+                        // unknown: try capitalized variants only to reduce irrelevant probes
+                        candidates = [
+                            `/${path}/${capName}.json`,
+                            `/${path}/${capName}.png`,
+                            `/${path}/${capName}.jpg`,
+                            `/${path}/${capName}.js`,
+                        ];
+                    }
                     let picked = null;
                     for (const c of candidates) {
                         /* eslint-disable no-await-in-loop */
                         if (await tryFetch(c)) { picked = c; break; }
                     }
                     if (!picked) {
-                        // Fallback: try original path join without leading slash
+                        // Fallback: try original path join without leading slash for the most-likely extension
                         const fallback = `${path}/${nameHint}.json`;
                         if (await tryFetch(fallback)) picked = fallback;
                     }

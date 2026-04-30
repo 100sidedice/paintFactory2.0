@@ -1,11 +1,13 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
 
 export default class FactoryManager {
-    constructor(DataManager, AssetManager, ParticleManager, input) {
+    constructor(DataManager, AssetManager, ParticleManager, input, options = {}) {
         this.DataManager = DataManager;
         this.AssetManager = AssetManager;
         this.ParticleManager = ParticleManager;
         this.input = input;
+        // options: { preview: boolean }
+        this.preview = !!options.preview;
         this.grid = this.generateGrid();
         this.items = {}
         this.drawQueue = [[],[],[],[]];

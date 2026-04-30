@@ -1,0 +1,19 @@
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* prevent scrollbars from appearing when canvas is larger than viewport */
+    background-color: #FFFFFFFF;
+}
+canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    /* keep pointer events so canvas still receives input where it is visible */
+    pointer-events: auto;
+    image-rendering: pixelated;
+    user-select: none; /* prevent text selection on drag */
+    display: block;
+}
