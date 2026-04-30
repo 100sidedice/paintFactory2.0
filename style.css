@@ -273,7 +273,7 @@ canvas {
     position: fixed;
     right: 16px;
     bottom: 16px;
-    z-index: 60;
+    z-index: 6000;
     background-color: #1b1b1bFF;
     color: #FFFFFFFF;
     border: 3px solid #00000066;
@@ -287,4 +287,9 @@ canvas {
     pointer-events: auto;
 }
 .reset-button:hover { border-color: #FFFF00FF; }
-.reset-button:active { border-color: #666600FF; }
+.reset-button:active { border-color: #666600FF; color: #333333; cursor: grabbing; }
+
+/* Back button shares reset styling but offset to the left so both are visible */
+.back-button {
+    right: 132px; /* place to the left of the reset button */
+}

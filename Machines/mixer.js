@@ -18,10 +18,24 @@ export default class mixer extends MachineBase {
         this._timeSinceLastAbsorb = 0;
         // accumulator for per-second depletion ticks when idle
         this._depleteAcc = 0;
+
+        this.splitting = false;
+        this.splitTime = 0;
+        this.splitTimeMax = 1500; // ms until return to normal logic
+        this._splitColors = null; // { r: int32, g: int32, b: int32 } while splitting
     }
 
     update(delta) {
         super.update(delta);
+        if(this.splitting){
+            this.splitTime -= delta;
+            if(this.splitTime <= 0){
+                this.splitting = false;
+                this.splitTime = 0;
+                this._splitColors = null;
+            }
+            return; // while splitting, skip normal mixing and absorption logic
+        }
         // track idle time since last absorb (only resets when new items are absorbed)
         this._timeSinceLastAbsorb += delta;
         if (this._timeSinceLastAbsorb > 3000) {
@@ -74,15 +88,99 @@ export default class mixer extends MachineBase {
         // If item sits in the up-collider, move it upward like a conveyor output.
         const capacity = this.manager.DataManager.config.defaultSaveData.upgrades.mixer.capacity;
         // up / output
-        const colUp = this.data.collisionUp || this.data.collision || {};
+        const colUp = this.data.collisionUp;
+        const colDown = this.data.collisionDown;
         if (isItemColliding(this.data.x, this.data.y, item, size, colUp, this.data.rot)) {
             const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
             applyMovement(true, item, speed, this.data.rot);
             return;
         }
+        if (isItemColliding(this.data.x, this.data.y, item, size, colDown, this.data.rot) && !this.splitting) {
+            console.log('Starting split for item', item);
+            console.log('Down collider:', colDown);
+            this.splitTime = this.splitTimeMax;
+            this.splitting = true;
+            const splitColor = item.color;
+
+            // remove the original input item
+            this.manager.removeItem(item);
+
+            // extract R/G/B channels from the 32-bit color (RRGGBBAA)
+            const v = intHex(splitColor) >>> 0;
+            const r = (v >>> 24) & 0xFF;
+            const g = (v >>> 16) & 0xFF;
+            const b = (v >>> 8) & 0xFF;
+            const a = v & 0xFF;
+
+            // build three colors: black + specific channel (preserve alpha)
+            const rCol = (((r & 0xFF) << 24) | (0 << 16) | (0 << 8) | (a & 0xFF)) >>> 0;
+            const gCol = (((0) << 24) | ((g & 0xFF) << 16) | (0 << 8) | (a & 0xFF)) >>> 0;
+            const bCol = (((0) << 24) | (0 << 16) | ((b & 0xFF) << 8) | (a & 0xFF)) >>> 0;
+
+            // remember split mask colors while splitting so draw() can use them
+            this._splitColors = { r: rCol, g: gCol, b: bCol };
+            // also set primary display color to green channel while splitting
+            this.color = gCol;
+
+            const x = this.data.x;
+            const y = this.data.y;
+            // spawn items only for non-zero channels (avoid spawning 'black' dyes)
+            // compute rotated offsets so spawn positions respect machine rotation
+            const cx = x + 0.5;
+            const cy = y + 0.5;
+            const ang = (this.data.rot || 0) * Math.PI / 180;
+            const cos = Math.cos(ang);
+            const sin = Math.sin(ang);
+            // offsets in tile units: left (-0.2,0), up (0,-0.2), right (0.2,0)
+            function rotOffset(dx, dy) {
+                // standard rotation (counter-clockwise) applied to (dx,dy)
+                const rx = dx * cos - dy * sin;
+                const ry = dx * sin + dy * cos;
+                return [rx, ry];
+            }
+            if (r > 0) {
+                const [ox, oy] = rotOffset(-0.2, 0);
+                const idR = `item_${Date.now()}_${this._count++}`;
+                const itemR = new Item(idR, cx + ox, cy + oy, rCol, this.manager);
+                this.manager.items[idR] = itemR;
+            }
+            if (g > 0) {
+                const [ox, oy] = rotOffset(0, -0.2);
+                const idG = `item_${Date.now()}_${this._count++}`;
+                const itemG = new Item(idG, cx + ox, cy + oy, gCol, this.manager);
+                this.manager.items[idG] = itemG;
+            }
+            if (b > 0) {
+                const [ox, oy] = rotOffset(0.2, 0);
+                const idB = `item_${Date.now()}_${this._count++}`;
+                const itemB = new Item(idB, cx + ox, cy + oy, bCol, this.manager);
+                this.manager.items[idB] = itemB;
+            }
+
+            return;
+        }
+        if(this.splitting) {
+            // While splitting, left & right colliders act like conveyors facing away from the machine
+            const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
+            const colLeft = this.data.collisionLeft;
+            const colRight = this.data.collisionRight;
+            // left -> face machine rotation minus 90 degrees
+            if (isItemColliding(this.data.x, this.data.y, item, size, colLeft, this.data.rot)) {
+                const leftRot = ((this.data.rot || 0) - 90 + 360) % 360;
+                applyMovement(true, item, speed, leftRot);
+                return;
+            }
+            // right -> face machine rotation plus 90 degrees
+            if (isItemColliding(this.data.x, this.data.y, item, size, colRight, this.data.rot)) {
+                const rightRot = ((this.data.rot || 0) + 90 + 360) % 360;
+                applyMovement(true, item, speed, rightRot);
+                return;
+            }
+            return;
+        } // stop absorbing new items while splitting (splitting overrides mixing)
 
         // left
-        const colLeft = this.data.collisionLeft || this.data.collision || {};
+        const colLeft = this.data.collisionLeft;
         if (this.leftQueue.length < capacity && isItemColliding(this.data.x, this.data.y, item, size, colLeft, this.data.rot)) {
             const n = item.color;
             this.leftQueue.push(n);
@@ -94,7 +192,7 @@ export default class mixer extends MachineBase {
         }
 
         // right
-        const colRight = this.data.collisionRight || this.data.collision || {};
+        const colRight = this.data.collisionRight;
         if (this.rightQueue.length < capacity && isItemColliding(this.data.x, this.data.y, item, size, colRight, this.data.rot)) {
             const n = item.color;
             this.rightQueue.push(n);
@@ -118,16 +216,29 @@ export default class mixer extends MachineBase {
         let cols = Math.max(1, Math.floor(img.width / tw));
         if (this.manager.paused) cols = 1; // prevent animation when paused by forcing tile index to 0, since `tileIndex = row * cols` and row is always 0 or positive
         const tileIndex = row * cols; // assume one-tile-per-row layout
-        const sx = Math.floor((performance.now() * this.data.texture.fps)/1000 % cols) * tw;
+        // compute animated frame index; reverse order while splitting
+        const fps = (this.data.texture && this.data.texture.fps) ? this.data.texture.fps : 8;
+        let frameIndex = 0;
+        if (cols > 0) {
+            frameIndex = Math.floor((performance.now() * fps) / 1000) % cols;
+            if (this.splitting) frameIndex = (cols - 1) - frameIndex;
+        }
+        const sx = frameIndex * tw;
         const sy = Math.floor(tileIndex / cols) * th;
         // colorize mask pixels: main mask (0x1C1C1CFF) -> `this.color`,
         // left mask (0xFFFFFFFF) -> left input color, right mask (0x000000FF) -> right input color
         const mainMask = 0x1C1C1CFF;
         const leftMask = 0xFFFFFFFF;
         const rightMask = 0x000000FF;
-        const mainColor = this.color || 0xFFFFFFFF;
-        const leftColor = (this.leftQueue && this.leftQueue.length > 0) ? this.leftQueue[0] : 0xFFFFFFFF;
-        const rightColor = (this.rightQueue && this.rightQueue.length > 0) ? this.rightQueue[0] : 0x000000FF;
+        // while splitting, override the three mask colors with split channels
+        let mainColor = this.color || 0xFFFFFFFF;
+        let leftColor = (this.leftQueue && this.leftQueue.length > 0) ? this.leftQueue[0] : 0xFFFFFFFF;
+        let rightColor = (this.rightQueue && this.rightQueue.length > 0) ? this.rightQueue[0] : 0x000000FF;
+        if (this.splitting && this._splitColors) {
+            mainColor = this._splitColors.g;
+            leftColor = this._splitColors.r;
+            rightColor = this._splitColors.b;
+        }
         const tileCanvas = getColorizedTile(img, sx, sy, tw, th, mainColor, mainMask, leftColor, leftMask, rightColor, rightMask);
         // draw centered similar to base Machine
         if(!this.rotating){

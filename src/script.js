@@ -81,6 +81,15 @@ class Program {
                 });
             }
         } catch (e) { console.warn('Failed to attach reset button handler', e); }
+        // Wire back button (navigate to level select)
+        try {
+            const backBtn = document.getElementById('backBtn');
+            if (backBtn) {
+                backBtn.addEventListener('click', () => {
+                    window.location.href = 'levelSelect.html';
+                });
+            }
+        } catch (e) { console.warn('Failed to attach back button handler', e); }
         // Start the main loop
         requestAnimationFrame(this.loop.bind(this));        
     }

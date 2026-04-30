@@ -15,7 +15,7 @@
     "Machines":[
         ["delete", 1],
         ["spawner", 4],
-        ["conveyor", 20],
+        ["conveyor", 0],
         ["conveyor-left", 5],
         ["conveyor-right", 5],
         ["mixer", 1],
