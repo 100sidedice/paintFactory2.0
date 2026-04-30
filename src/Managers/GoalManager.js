@@ -189,8 +189,9 @@ export default class GoalManager {
 
         if (remainingMs > 0) {
             // map remaining fraction to first-row frames (0..cols-1)
+            // frames should advance as time elapses, so invert the remaining fraction
             const frac = Math.max(0, Math.min(1, remainingMs / totalMs));
-            const frame = Math.floor(frac * (cols - 1));
+            const frame = Math.floor((1 - frac) * (cols - 1));
             const sx = frame * tw;
             const sy = 0;
             ctx.imageSmoothingEnabled = false;

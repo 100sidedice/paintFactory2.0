@@ -21,7 +21,7 @@ export default class mixer extends MachineBase {
 
         this.splitting = false;
         this.splitTime = 0;
-        this.splitTimeMax = 1500; // ms until return to normal logic
+        this.splitTimeMax = 1000; // ms until return to normal logic
         this._splitColors = null; // { r: int32, g: int32, b: int32 } while splitting
     }
 

@@ -24,7 +24,7 @@ export default class FactoryManager {
         this.paused = false;
         this.clipPos = { x: 0, y: 0 }; // for tracking mouse position clipboard origin
     }
-    generateGrid(x=16, y=16) {
+    generateGrid(x=20, y=16) {
         this.grid = [];
         for (let i = 0; i < x; i++) {
             this.grid[i] = [];

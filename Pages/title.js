@@ -15,7 +15,7 @@ const particleManager = new ParticleManager();
 let lastTime = performance.now();
 let spawnTimer = 0;
 const spawnInterval = 300;
-
+const offset = { x: 5, y: 0 };
 // Minimal input stub used by FactoryManager (only getPos used occasionally)
 const inputStub = {
     getPos: () => ({ x: 0, y: 0 })
@@ -175,8 +175,8 @@ async function initTitleBoard() {
 
     for (const [key, value] of Object.entries(titleLayout.Placed)) {
         const parts = key.split('.')
-        const gx = Number(parts[0])+1;
-        const gy = Number(parts[1]);
+        const gx = Number(parts[0])+offset.x;
+        const gy = Number(parts[1])+offset.y;
         // Normalize placement entry to object { type, rot, color, ... }
         let m = {};
         if (typeof value === 'string') {

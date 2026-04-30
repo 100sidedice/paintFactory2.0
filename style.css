@@ -12,9 +12,6 @@ canvas {
     /* keep pointer events so canvas still receives input where it is visible */
     pointer-events: auto;
     image-rendering: pixelated;
-    /** can you prevent default right click menu */
-    
-
     user-select: none; /* prevent text selection on drag */
 }
 #machine_sidebar {
