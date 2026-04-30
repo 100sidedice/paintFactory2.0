@@ -119,6 +119,10 @@ export default class BackgroundManager {
         if (this.tilesetImage) {
             try { this.assetManager.set('background.tileset', this.tilesetImage); } catch(e) {}
         }
+        window.addEventListener('resize', () => {
+            // trigger redraw on resize to adjust scaling
+            
+        });
     }
 
     draw(ctx) {
@@ -129,14 +133,14 @@ export default class BackgroundManager {
         const cols = ts.columns || Math.max(1, Math.floor(this.tilesetImage.width / tw));
 
         // compute scale to cover the canvas while preserving aspect ratio
-        const canvasW = ctx.canvas.width;
-        const canvasH = ctx.canvas.height;
+        const canvasW = window.innerWidth; // use window width to ensure full horizontal coverage
+        const canvasH = window.innerHeight; // use window height to ensure full vertical coverage
         const mapPixelW = this.map.width * tw;
         const mapPixelH = this.map.height * th;
         const scale = Math.max(canvasH / mapPixelH, canvasH / mapPixelH);
         const destW = mapPixelW * scale;
         const destH = mapPixelH * scale;
-        const offsetX = 0;
+        const offsetX = Math.round((canvasW - destW) / 2);
         const offsetY = Math.round((canvasH - destH) / 2);
 
         // disable smoothing for pixel-art background rendering

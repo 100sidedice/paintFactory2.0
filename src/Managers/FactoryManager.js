@@ -1,4 +1,5 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
+import { isItemColliding } from "../../Machines/components/collision.js";
 
 export default class FactoryManager {
     constructor(DataManager, AssetManager, ParticleManager, input, options = {}) {
@@ -402,7 +403,21 @@ export default class FactoryManager {
             if (cellX < 0 || cellY < 0 || cellX >= this.grid.length || cellY >= this.grid[0].length) this.items[itemId] = null; // remove items that go out of bounds
             const machine = this.grid[cellX][cellY];
             if (!machine) continue;
-            if (machine.onItemCollision) machine.onItemCollision(it, size);
+            // detect collision for goal tracking (machines may also handle collision internally)
+            const collision = (machine.data && machine.data.collision) ? machine.data.collision : { top:0, right:0, bottom:0, left:0 };
+            const colliding = isItemColliding(machine.data.x ?? 0, machine.data.y ?? 0, it, size, collision, machine.data.rot);
+            if (colliding) {
+                if (machine.onItemCollision) machine.onItemCollision(it, size);
+                try {
+                    const gm = this.levelManager && this.levelManager.goalManager;
+                    if (gm && typeof gm.recordMachineCollision === 'function') gm.recordMachineCollision(machine.name || (machine.data && machine.data.type) || '', machine.data.x, machine.data.y, it.id);
+                } catch (e) {
+                    // swallow errors from goal tracking
+                }
+            } else {
+                // still call machine handler if present (some machines expect to be notified even when not colliding)
+                if (machine.onItemCollision) machine.onItemCollision(it, size);
+            }
         }
     }
     addMachine(type, x, y, rot=0){

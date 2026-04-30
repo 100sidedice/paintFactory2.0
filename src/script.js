@@ -31,7 +31,7 @@ class Program {
         // for data-dependent or heavier initialization, we can put it here
         // Initialize canvas resizing
         resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', ()=>{resizeCanvas()});
 
         // Get canvas and context
         this.canvas = document.getElementById('Draw');

@@ -16,6 +16,8 @@ export default class GoalManager {
         }
 
         this.goals = []; // { kind: 'color'|'machine', key, colorInt, colorCss, need, have, el, haveEl }
+        this._collisionExpireMs = 1500; // ms after last collision to stop tracking a cell
+        this._goalAnimReq = null;
 
         // Hook into SidebarManager updates so machine counts refresh when sidebar changes
         const sb = this.levelManager?.sidebarManager;
@@ -28,6 +30,7 @@ export default class GoalManager {
     }
 
     populate(goalObj) {
+        this._stopGoalAnimLoop();
         this.goals = [];
         this.container.innerHTML = '';
         if (!goalObj) return;
@@ -55,6 +58,8 @@ export default class GoalManager {
         }
         // initial refresh to populate counts
         this._refreshAllGoals();
+        // start animating machine swatches (if any)
+        this._startGoalAnimLoop();
     }
     _createEntry(opts) {
         const wrap = document.createElement('div');
@@ -86,17 +91,12 @@ export default class GoalManager {
             // draw machine texture instead of item texture
             const type = opts.key;
             const img = this.assetManager.get('machines-image');
+            // store type on canvas for animation frame updates
+            sw.dataset.machineType = String(type);
             const data = this.levelManager?.dataManager?.getData(joinDots('machineData', type)) ?? {};
             if (img && data && data.texture) {
-                const row = data.texture.row || 0;
-                const tw = 16; const th = 16;
-                const cols = Math.max(1, Math.floor(img.width / tw));
-                const tileIndex = row * cols;
-                const sx = 0;
-                const sy = Math.floor(tileIndex / cols) * th;
-                const ctx = sw.getContext('2d');
-                ctx.imageSmoothingEnabled = false;
-                ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
+                // draw first frame immediately; animation loop will update later
+                this._drawMachineFrame(sw, type, performance.now());
             } else {
                 const ctx = sw.getContext('2d');
                 ctx.fillStyle = '#333333';
@@ -104,7 +104,7 @@ export default class GoalManager {
             }
             wrap.appendChild(sw);
             wrap.appendChild(text);
-            return { kind: 'machine', key: opts.key, need: opts.need||0, have: 0, el: wrap, haveEl: haveSpan };
+            return { kind: 'machine', key: opts.key, need: opts.need||0, have: 0, el: wrap, haveEl: haveSpan, collidedCells: new Set(), _cellTimers: {}, swCanvas: sw };
         } else {
             // color goal
             const colorInt = opts.colorInt ?? null;
@@ -126,6 +126,51 @@ export default class GoalManager {
         }
     }
 
+    _drawMachineFrame(sw, type, nowMs) {
+        const ctx = sw.getContext('2d');
+        ctx.clearRect(0,0,sw.width,sw.height);
+        const img = this.assetManager.get('machines-image');
+        if (!img) return;
+        const data = this.levelManager?.dataManager?.getData(joinDots('machineData', type)) ?? {};
+        const row = (data.texture && data.texture.row) ?? 0;
+        const tw = 16; const th = 16;
+        const cols = Math.max(1, Math.floor(img.width / tw));
+        const tileIndex = row * cols;
+        let fps = (data.texture && data.texture.fps) ?? 0;
+        if (!fps || fps <= 0) fps = 4;
+        const frame = Math.floor((nowMs * fps) / 1000) % cols;
+        const sx = frame * tw;
+        const sy = Math.floor(tileIndex / cols) * th;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
+    }
+
+    _startGoalAnimLoop() {
+        if (this._goalAnimReq) return;
+        const loop = (ts) => {
+            if (!this.goals || this.goals.length === 0) {
+                this._goalAnimReq = requestAnimationFrame(loop);
+                return;
+            }
+            for (const g of this.goals) {
+                if (g.kind !== 'machine') continue;
+                const sw = g.swCanvas ?? g.el.querySelector('canvas.goal-swatch');
+                if (!sw) continue;
+                const type = String(g.key);
+                this._drawMachineFrame(sw, type, ts);
+            }
+            this._goalAnimReq = requestAnimationFrame(loop);
+        };
+        this._goalAnimReq = requestAnimationFrame(loop);
+    }
+
+    _stopGoalAnimLoop() {
+        if (this._goalAnimReq) {
+            cancelAnimationFrame(this._goalAnimReq);
+            this._goalAnimReq = null;
+        }
+    }
+
     // record a sold item color (int hex or css); increments have count for matching goal if present
     recordSale(color) {
         if (color === null || color === undefined) return;
@@ -143,27 +188,48 @@ export default class GoalManager {
         }
     }
 
+    // record an item colliding with a machine at grid cell (x,y)
+    // Adds the cell to the tracked set immediately, and (re)starts an expiry timer
+    recordMachineCollision(type, x, y, itemId) {
+        if (!type || x === undefined || y === undefined) return;
+        const cellKey = `${x},${y}`;
+        for (const g of this.goals) {
+            if (g.kind !== 'machine') continue;
+            if (String(g.key) !== String(type)) continue;
+            g.collidedCells = g.collidedCells || new Set();
+            g._cellTimers = g._cellTimers || {};
+            // if not already tracked, add immediately
+            if (!g.collidedCells.has(cellKey)) {
+                g.collidedCells.add(cellKey);
+                g.have = (g.have || 0) + 1;
+                if (g.haveEl) g.haveEl.textContent = String(g.have);
+                this._updateGoalState(g);
+            }
+            // clear previous timeout if present
+            const prev = g._cellTimers[cellKey];
+            if (prev && prev.timeoutId) {
+                clearTimeout(prev.timeoutId);
+            }
+            // set new expiry to remove tracking if no collision occurs within expire window
+            const timeoutId = setTimeout(() => {
+                // remove the cell from tracked set and decrement have
+                if (g.collidedCells && g.collidedCells.has(cellKey)) {
+                    g.collidedCells.delete(cellKey);
+                    g.have = Math.max(0, (g.have || 1) - 1);
+                    if (g.haveEl) g.haveEl.textContent = String(g.have);
+                    this._updateGoalState(g);
+                }
+            }, this._collisionExpireMs);
+            g._cellTimers[cellKey] = { timeoutId, lastSeen: Date.now() };
+        }
+    }
+
     _refreshAllGoals() {
         for (const g of this.goals) {
             if (g.kind === 'machine') {
-                // use SidebarManager's count helper if available
-                let placed = 0;
-                try {
-                    const sb = this.levelManager?.sidebarManager;
-                    if (sb && typeof sb._countPlacedOfType === 'function') placed = sb._countPlacedOfType(g.key);
-                    else {
-                        // fallback: count via factory grid
-                        const grid = this.factoryManager?.grid || [];
-                        for (let x = 0; x < grid.length; x++) {
-                            for (let y = 0; y < (grid[x] || []).length; y++) {
-                                const m = grid[x][y];
-                                if (!m) continue;
-                                if ((m.name || (m.data && m.data.type)) === g.key) placed++;
-                            }
-                        }
-                    }
-                } catch (e) { placed = 0; }
-                g.have = placed;
+                // count machines satisfied via collision-tracking (per-grid-cell)
+                g.collidedCells = g.collidedCells || new Set();
+                g.have = g.collidedCells.size || 0;
                 if (g.haveEl) g.haveEl.textContent = String(g.have);
                 this._updateGoalState(g);
             } else if (g.kind === 'color') {
@@ -175,16 +241,12 @@ export default class GoalManager {
     }
 
     _updateGoalState(g) {
-        try {
-            const met = (g.have || 0) >= (g.need || 0);
-            const textEl = g.el.querySelector('.goal-text');
-            if (textEl) textEl.style.color = met ? '#00FF00' : '#FFFFFF';
-            // if all goals are met, trigger win sequence
-            try {
-                const allMet = this.goals.length > 0 && this.goals.every(x => (x.have || 0) >= (x.need || 0));
-                if (allMet) this._onAllGoalsMet();
-            } catch (e) {}
-        } catch (e) {}
+        const met = (g.have || 0) >= (g.need || 0);
+        const textEl = g.el.querySelector('.goal-text');
+        if (textEl) textEl.style.color = met ? '#00FF00' : '#FFFFFF';
+        // if all goals are met, trigger win sequence
+        const allMet = this.goals.length > 0 && this.goals.every(x => (x.have || 0) >= (x.need || 0));
+        if (allMet) this._onAllGoalsMet();
     }
 
     _onAllGoalsMet() {
