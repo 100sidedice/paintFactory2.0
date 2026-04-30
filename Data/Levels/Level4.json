@@ -10,6 +10,7 @@
     "Placed": {
     },
     "Goal": {
+        "Time": 10000,
         "#FFFFFFFF": 20
     },
     "Machines":[

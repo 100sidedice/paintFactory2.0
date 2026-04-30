@@ -6,6 +6,7 @@
         "name": "color"
     },
     "machines-image": {"path": "Assets/machines.png", "type": "image", "extra": "", "name": "machines-image"},
+    "hourglass": {"path": "Assets/hourglass.png", "type": "image", "extra": "", "name": "hourglass"},
     "machines-image-grayed": {"path": "Assets/machines-grayed.png", "type": "image", "extra": "", "name": "machines-image-grayed"},
     "Machines":{
         "path": "Machines",

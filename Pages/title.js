@@ -27,15 +27,132 @@ let factory = null;
 // 2) Relative array for easy copy/paste: "placedRelative": [ { x: -3, y: 0, type: 'spawner', rot:0 }, ... ]
 // Edit this object to change the title screen factory. `placedRelative` is centered on the grid.
 const titleLayout = {
-    placedRelative: [
-        { x: -3, y: 0, type: 'spawner', rot: 0, color: 0xFFFFFFFF },
-        { x: -2, y: 0, type: 'conveyor', rot: 0 },
-        { x: -1, y: 0, type: 'conveyor', rot: 0 },
-        { x: 0,  y: 0, type: 'conveyor', rot: 0 },
-        { x: 1,  y: 0, type: 'conveyor-right', rot: 90 },
-        { x: 2,  y: 1, type: 'conveyor-right', rot: 90 },
-        { x: 3,  y: 1, type: 'seller', rot: 0 }
-    ]
+    Placed: {
+        "2.4": "seller",
+        "3.4": {
+            "type": "conveyor",
+            "rot": 270
+        },
+        "4.1": "seller",
+        "4.2": "conveyor",
+        "4.3": "conveyor",
+        "4.4": {
+            "type": "mixer",
+            "rot": 270
+        },
+        "4.5": {
+            "type": "conveyor",
+            "rot": 180
+        },
+        "4.6": {
+            "type": "conveyor",
+            "rot": 180
+        },
+        "4.7": "seller",
+        "5.3": {
+            "type": "spawner #FFFFFFFF",
+            "rot": 90
+        },
+        "5.4": {
+            "type": "spawner #FFFFFFFF",
+            "rot": 270
+        },
+        "5.5": {
+            "type": "spawner #FFFFFFFF",
+            "rot": 90
+        },
+        "6.1": "conveyor-right",
+        "6.2": "conveyor",
+        "6.3": {
+            "type": "mixer",
+            "rot": 90
+        },
+        "6.4": {
+            "type": "mixer",
+            "rot": 90
+        },
+        "6.5": {
+            "type": "mixer",
+            "rot": 90
+        },
+        "6.6": {
+            "type": "conveyor",
+            "rot": 180
+        },
+        "6.7": {
+            "type": "conveyor-left",
+            "rot": 180
+        },
+        "7.1": {
+            "type": "conveyor-right",
+            "rot": 90
+        },
+        "7.2": {
+            "type": "mixer",
+            "rot": 90
+        },
+        "7.3": {
+            "type": "conveyor-left",
+            "rot": 90
+        },
+        "7.4": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "7.5": {
+            "type": "conveyor-right",
+            "rot": 90
+        },
+        "7.6": {
+            "type": "mixer",
+            "rot": 90
+        },
+        "7.7": {
+            "type": "conveyor-left",
+            "rot": 90
+        },
+        "8.2": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "8.4": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "8.6": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "9.1": "conveyor-right",
+        "9.2": {
+            "type": "conveyor-left",
+            "rot": 90
+        },
+        "9.4": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "9.6": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "10.1": "seller",
+        "10.2": "spawner #FFFFFFFF",
+        "10.4": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "10.6": {
+            "type": "conveyor-right",
+            "rot": 90
+        },
+        "10.7": "seller",
+        "11.4": {
+            "type": "conveyor",
+            "rot": 90
+        },
+        "12.4": "seller"
+    }
 };
 
 async function initTitleBoard() {
@@ -57,33 +174,31 @@ async function initTitleBoard() {
     const cy = Math.floor(h / 2);
 
     // Populate from `titleLayout` (supports absolute `Placed` map or `placedRelative` array)
-    if (titleLayout && typeof titleLayout === 'object') {
-        // Absolute mapping like level JSON: keys are "x,y"
-        if (titleLayout.Placed && typeof titleLayout.Placed === 'object') {
-            for (const [k, v] of Object.entries(titleLayout.Placed)) {
-                const parts = k.split(',').map(n => parseInt(n, 10));
-                if (parts.length !== 2 || parts.some(Number.isNaN)) continue;
-                const [gx, gy] = parts;
-                const inst = factory.addMachine(v.type, gx, gy, v.rot || 0);
-                if (inst && v.color !== undefined && v.color !== null) { inst.data = inst.data || {}; inst.data.color = v.color; inst.color = v.color; }
-                if (inst && v._acc !== undefined) inst._acc = v._acc;
-                if (inst && v._count !== undefined) inst._count = v._count;
-            }
+    // Absolute mapping like level JSON: keys are "x,y"
+    if (titleLayout.Placed && typeof titleLayout.Placed === 'object') {
+        for (const [k, v] of Object.entries(titleLayout.Placed)) {
+            const parts = k.split(',').map(n => parseInt(n, 10));
+            if (parts.length !== 2 || parts.some(Number.isNaN)) continue;
+            const [gx, gy] = parts;
+            const inst = factory.addMachine(v.type, gx, gy, v.rot || 0);
+            if (inst && v.color !== undefined && v.color !== null) { inst.data = inst.data || {}; inst.data.color = v.color; inst.color = v.color; }
+            if (inst && v._acc !== undefined) inst._acc = v._acc;
+            if (inst && v._count !== undefined) inst._count = v._count;
         }
+    }
 
-        // Relative array centered on grid
-        if (Array.isArray(titleLayout.placedRelative)) {
-            for (const m of titleLayout.placedRelative) {
-                if (!m || !m.type) continue;
-                const gx = cx + (m.x || 0);
-                const gy = cy + (m.y || 0);
-                try {
-                    const inst = factory.addMachine(m.type, gx, gy, m.rot || 0);
-                    if (inst && m.color !== undefined && m.color !== null) { inst.data = inst.data || {}; inst.data.color = m.color; inst.color = m.color; }
-                    if (inst && m._acc !== undefined) inst._acc = m._acc;
-                    if (inst && m._count !== undefined) inst._count = m._count;
-                } catch (e) { /* ignore single-machine failures */ }
-            }
+    // Relative array centered on grid
+    if (Array.isArray(titleLayout.placedRelative)) {
+        for (const m of titleLayout.placedRelative) {
+            if (!m || !m.type) continue;
+            const gx = cx + (m.x || 0);
+            const gy = cy + (m.y || 0);
+            try {
+                const inst = factory.addMachine(m.type, gx, gy, m.rot || 0);
+                if (inst && m.color !== undefined && m.color !== null) { inst.data = inst.data || {}; inst.data.color = m.color; inst.color = m.color; }
+                if (inst && m._acc !== undefined) inst._acc = m._acc;
+                if (inst && m._count !== undefined) inst._count = m._count;
+            } catch (e) { /* ignore single-machine failures */ }
         }
     }
 }

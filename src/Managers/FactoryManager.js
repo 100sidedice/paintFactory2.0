@@ -400,7 +400,8 @@ export default class FactoryManager {
             // Collision check
             const cellX = Math.floor(it.x);
             const cellY = Math.floor(it.y);
-            if (cellX < 0 || cellY < 0 || cellX >= this.grid.length || cellY >= this.grid[0].length) this.items[itemId] = null; // remove items that go out of bounds
+            // remove items that go out of bounds and skip further processing for them
+            if (cellX < 0 || cellY < 0 || cellX >= this.grid.length || cellY >= (this.grid[0]?.length || 0)) { this.items[itemId] = null; continue; }
             const machine = this.grid[cellX][cellY];
             if (!machine) continue;
             // detect collision for goal tracking (machines may also handle collision internally)

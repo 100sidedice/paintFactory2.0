@@ -10,6 +10,7 @@
     "Placed": {
     },
     "Goal": {
+        "Time": 10000,
         "#0000FFFF": 100,
         "#00FF00FF": 100,
         "#FF0000FF": 100,
@@ -30,6 +31,6 @@
         ["seller", 9999]
     ],
     "spawner-items": [
-        {"color": "#8080080FF", "count": 999}
+        {"color": "#FFFFFFFF", "count": 999}
     ]
 }

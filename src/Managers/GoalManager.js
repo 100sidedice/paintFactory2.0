@@ -18,6 +18,7 @@ export default class GoalManager {
         this.goals = []; // { kind: 'color'|'machine', key, colorInt, colorCss, need, have, el, haveEl }
         this._collisionExpireMs = 1500; // ms after last collision to stop tracking a cell
         this._goalAnimReq = null;
+        this._timeExpired = false;
 
         // Hook into SidebarManager updates so machine counts refresh when sidebar changes
         const sb = this.levelManager?.sidebarManager;
@@ -33,13 +34,21 @@ export default class GoalManager {
         this._stopGoalAnimLoop();
         this.goals = [];
         this.container.innerHTML = '';
+        this._timeExpired = false;
+        this._winTriggered = false;
+        const existingOverlay = document.getElementById('time-up-overlay');
+        if (existingOverlay) existingOverlay.remove();
         if (!goalObj) return;
         const keys = Object.keys(goalObj || {});
         // Goal keys expected to be hex strings like "#RRGGBBAA" or machine names
         for (const k of keys) {
             const need = parseInt(goalObj[k], 10) || 0;
-            // determine goal kind: color if key starts with '#', otherwise assume machine name
-            if (String(k).startsWith('#')) {
+            // determine goal kind: color if key starts with '#', 'time' if key is time, otherwise assume machine name
+            if (String(k).toLowerCase() === 'time') {
+                const entry = this._createEntry({ kind: 'time', key: k, need });
+                this.container.appendChild(entry.el);
+                this.goals.push(entry);
+            } else if (String(k).startsWith('#')) {
                 let colorInt = null;
                 try { colorInt = intHex(k); } catch (e) {
                     const n = parseInt(k, 10);
@@ -105,6 +114,20 @@ export default class GoalManager {
             wrap.appendChild(sw);
             wrap.appendChild(text);
             return { kind: 'machine', key: opts.key, need: opts.need||0, have: 0, el: wrap, haveEl: haveSpan, collidedCells: new Set(), _cellTimers: {}, swCanvas: sw };
+        } else if (opts.kind === 'time') {
+            // time goal: show hourglass animation + remaining seconds
+            const seconds = opts.need || 0;
+            const img = this.assetManager.get('hourglass');
+            // use haveSpan as remaining display and hide slash/need
+            haveSpan.textContent = String(seconds);
+            sep.textContent = '';
+            needSpan.textContent = '';
+            wrap.appendChild(sw);
+            wrap.appendChild(text);
+            const start = performance.now();
+            const entry = { kind: 'time', key: opts.key, need: seconds, el: wrap, haveEl: haveSpan, swCanvas: sw, startTimeMs: start, endTimeMs: start + (seconds * 1000), remaining: seconds };
+            if (img) this._drawTimeFrame(sw, entry, start);
+            return entry;
         } else {
             // color goal
             const colorInt = opts.colorInt ?? null;
@@ -145,6 +168,42 @@ export default class GoalManager {
         ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
     }
 
+    _drawTimeFrame(sw, g, nowMs) {
+        const ctx = sw.getContext('2d');
+        ctx.clearRect(0,0,sw.width,sw.height);
+        const img = this.assetManager.get('hourglass');
+        if (!img) {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(0,0,sw.width,sw.height);
+            return;
+        }
+        const rows = 2;
+        const th = Math.max(1, Math.floor(img.height / rows));
+        const tw = th; // assume square frames
+        const cols = Math.max(1, Math.floor(img.width / tw));
+        const totalMs = Math.max(1, (g.need || 0) * 1000);
+        const remainingMs = Math.max(0, (g.endTimeMs || 0) - nowMs);
+        const remainingSec = Math.ceil(remainingMs / 1000);
+        g.remaining = remainingSec;
+        if (g.haveEl) g.haveEl.textContent = String(remainingSec);
+
+        if (remainingMs > 0) {
+            // map remaining fraction to first-row frames (0..cols-1)
+            const frac = Math.max(0, Math.min(1, remainingMs / totalMs));
+            const frame = Math.floor(frac * (cols - 1));
+            const sx = frame * tw;
+            const sy = 0;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
+        } else {
+            // time up frame: second row, first column
+            const sx = 0;
+            const sy = th;
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
+        }
+    }
+
     _startGoalAnimLoop() {
         if (this._goalAnimReq) return;
         const loop = (ts) => {
@@ -153,11 +212,20 @@ export default class GoalManager {
                 return;
             }
             for (const g of this.goals) {
-                if (g.kind !== 'machine') continue;
-                const sw = g.swCanvas ?? g.el.querySelector('canvas.goal-swatch');
-                if (!sw) continue;
-                const type = String(g.key);
-                this._drawMachineFrame(sw, type, ts);
+                if (g.kind === 'machine') {
+                    const sw = g.swCanvas ?? g.el.querySelector('canvas.goal-swatch');
+                    if (!sw) continue;
+                    const type = String(g.key);
+                    this._drawMachineFrame(sw, type, ts);
+                } else if (g.kind === 'time') {
+                    const sw = g.swCanvas ?? g.el.querySelector('canvas.goal-swatch');
+                    if (!sw) continue;
+                    this._drawTimeFrame(sw, g, ts);
+                    // if time expired and not yet handled, trigger expiry
+                    if ((g.endTimeMs || 0) <= ts && !this._timeExpired) {
+                        this._onTimeExpired();
+                    }
+                }
             }
             this._goalAnimReq = requestAnimationFrame(loop);
         };
@@ -236,17 +304,50 @@ export default class GoalManager {
                 // color goals are only updated via recordSale(), but ensure UI reflects current have
                 if (g.haveEl) g.haveEl.textContent = String(g.have || 0);
                 this._updateGoalState(g);
+            } else if (g.kind === 'time') {
+                // initialize display for time
+                g.remaining = g.need || 0;
+                if (g.haveEl) g.haveEl.textContent = String(g.remaining || 0);
+                this._updateGoalState(g);
             }
         }
     }
 
     _updateGoalState(g) {
-        const met = (g.have || 0) >= (g.need || 0);
+        const met = (g.kind === 'time') ? true : ((g.have || 0) >= (g.need || 0));
         const textEl = g.el.querySelector('.goal-text');
         if (textEl) textEl.style.color = met ? '#00FF00' : '#FFFFFF';
-        // if all goals are met, trigger win sequence
-        const allMet = this.goals.length > 0 && this.goals.every(x => (x.have || 0) >= (x.need || 0));
-        if (allMet) this._onAllGoalsMet();
+        // compute all non-time goals met
+        const relevantGoals = this.goals.filter(x => x.kind !== 'time');
+        const allMet = relevantGoals.length > 0 && relevantGoals.every(x => (x.have || 0) >= (x.need || 0));
+        if (allMet && !this._timeExpired) this._onAllGoalsMet();
+    }
+
+    _onTimeExpired() {
+        if (this._timeExpired) return;
+        this._timeExpired = true;
+        // show a simple overlay informing player time is up
+        try {
+            const overlay = document.createElement('div');
+            overlay.id = 'time-up-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.left = '0';
+            overlay.style.top = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.background = 'rgba(0,0,0,0.8)';
+            overlay.style.zIndex = '2000';
+            const inner = document.createElement('div');
+            inner.style.color = '#FFFFFF';
+            inner.style.fontSize = '36px';
+            inner.style.textAlign = 'center';
+            inner.textContent = "Time's up!";
+            overlay.appendChild(inner);
+            document.body.appendChild(overlay);
+        } catch (e) {}
     }
 
     _onAllGoalsMet() {

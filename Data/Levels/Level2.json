@@ -10,6 +10,7 @@
     "Placed": {
     },
     "Goal": {
+        "Time": 10000,
         "#0000FFFF": 20,
         "#FF0000FF": 20,
         "conveyor-right": 1

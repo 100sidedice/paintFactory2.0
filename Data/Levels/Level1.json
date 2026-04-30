@@ -8,6 +8,7 @@
         "Make a path from the spawner to the goal using conveyor belts"
     ],
     "Goal": {
+        "Time": 10000,
         "#000000FF": 5
     },
     "Machines": [["delete",1],["spawner",1],["conveyor",20],["seller",1]],
