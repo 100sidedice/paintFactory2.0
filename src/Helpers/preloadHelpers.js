@@ -56,7 +56,21 @@ export async function preloadFolder(path, type='image') {
 }
 /** Preloads a JavaScript module */
 export async function preloadModule(path) {
-    return import(path);
+    // Normalize and resolve module specifiers so they load correctly
+    // on GitHub Pages (repository is served from a subpath).
+    // If `path` is already an absolute URL, import it directly.
+    try {
+        const isAbsoluteUrl = /^(?:https?:)?\/\//i.test(path);
+        if (isAbsoluteUrl) return import(path);
+        // Remove a leading slash so resolution is relative to the
+        // current document base (which includes the repo subpath).
+        const normalized = path.replace(/^\//, '');
+        const url = new URL(normalized, document.baseURI).toString();
+        return import(url);
+    } catch (e) {
+        // Fallback to direct import if URL construction fails
+        return import(path);
+    }
 }
 /** Preloads a Tiled tilemap (JSON/tmx-lite). Loads referenced tileset images. */
 export async function preloadTilemap(path) {

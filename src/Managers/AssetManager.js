@@ -44,7 +44,15 @@ export default class AssetManager {
                 const folder = {};
                 const tryFetch = async (p) => {
                     try {
-                        const r = await fetch(p, { method: 'HEAD' });
+                        // Normalize leading slashes so probes resolve relative
+                        // to the document base (which includes the repo subpath
+                        // on GitHub Pages).
+                        let probe = p;
+                        if (typeof probe === 'string' && probe.startsWith('/')) {
+                            probe = probe.replace(/^\/+/, '');
+                            probe = new URL(probe, document.baseURI).toString();
+                        }
+                        const r = await fetch(probe, { method: 'HEAD' });
                         return r.ok;
                     } catch (e) {
                         return false;
@@ -87,12 +95,18 @@ export default class AssetManager {
                         // If still not found, skip this entry
                         continue;
                     }
+                    // Normalize picked URL (resolve leading-slash picks against
+                    // the document base so they work on GitHub Pages).
+                    let pickedResolved = picked;
+                    if (typeof pickedResolved === 'string' && pickedResolved.startsWith('/')) {
+                        pickedResolved = new URL(pickedResolved.replace(/^\/+/, ''), document.baseURI).toString();
+                    }
                     // Determine loader by extension
-                    if (picked.endsWith('.json')) folder[key] = await preloadJSON(picked);
-                    else if (picked.match(/\.png$|\.jpg$|\.jpeg$/i)) folder[key] = await preloadImage(picked);
-                    else if (picked.match(/\.mp3$|\.wav$/i)) folder[key] = await preloadAudio(picked);
-                    else if (picked.endsWith('.js')) folder[key] = await preloadModule(picked);
-                    else folder[key] = await preloadJSON(picked);
+                    if (pickedResolved.endsWith('.json')) folder[key] = await preloadJSON(pickedResolved);
+                    else if (pickedResolved.match(/\.png$|\.jpg$|\.jpeg$/i)) folder[key] = await preloadImage(pickedResolved);
+                    else if (pickedResolved.match(/\.mp3$|\.wav$/i)) folder[key] = await preloadAudio(pickedResolved);
+                    else if (pickedResolved.endsWith('.js')) folder[key] = await preloadModule(pickedResolved);
+                    else folder[key] = await preloadJSON(pickedResolved);
                 }
                 result = folder;
                 break;
