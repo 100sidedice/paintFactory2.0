@@ -19,6 +19,12 @@ export default class GoalManager {
         this._collisionExpireMs = 1500; // ms after last collision to stop tracking a cell
         this._goalAnimReq = null;
         this._timeExpired = false;
+        // speed boost state: require all non-time goals to be 'recent' within duration to enable
+        this._recentGoals = new Set(); // set of goal keys recently received/collided
+        this._recentGoalTimeouts = {}; // key -> timeoutId
+        this._speedBoostDurationMs = 3000; // 3 seconds window to consider a goal 'recent'
+        this._speedBoostMultiplier = 10; // 10x speed
+        this._speedBoostActive = false;
 
         // Hook into SidebarManager updates so machine counts refresh when sidebar changes
         const sb = this.levelManager?.sidebarManager;
@@ -34,6 +40,13 @@ export default class GoalManager {
         this._stopGoalAnimLoop();
         this.goals = [];
         this.container.innerHTML = '';
+        // clear any recent-goal timers when populating new goals
+        try {
+            for (const k of Object.keys(this._recentGoalTimeouts || {})) {
+                const t = this._recentGoalTimeouts[k]; if (t) clearTimeout(t);
+            }
+        } catch (e) {}
+        this._recentGoals = new Set(); this._recentGoalTimeouts = {};
         this._timeExpired = false;
         this._winTriggered = false;
         const existingOverlay = document.getElementById('time-up-overlay');
@@ -252,9 +265,28 @@ export default class GoalManager {
                 g.have = (g.have || 0) + 1;
                 if (g.haveEl) g.haveEl.textContent = String(g.have);
                 this._updateGoalState(g);
+                // mark this goal as recently received and check whether all goals are recent
+                try { this._markGoalRecent(g.key); } catch (e) {}
                 return;
             }
         }
+    }
+
+    _activateSpeedBoost() {
+        // enable multiplier on factoryManager
+        try {
+            if (this.factoryManager) {
+                this.factoryManager.speedMultiplier = this._speedBoostMultiplier;
+                this._speedBoostActive = true;
+            }
+        } catch (e) {}
+    }
+
+    _deactivateSpeedBoost() {
+        try {
+            if (this.factoryManager) this.factoryManager.speedMultiplier = 1;
+        } catch (e) {}
+        this._speedBoostActive = false;
     }
 
     // record an item colliding with a machine at grid cell (x,y)
@@ -290,6 +322,44 @@ export default class GoalManager {
                 }
             }, this._collisionExpireMs);
             g._cellTimers[cellKey] = { timeoutId, lastSeen: Date.now() };
+            // mark machine goal as recently active for speed-boost considerations
+            try { this._markGoalRecent(g.key); } catch (e) {}
+        }
+    }
+
+    _markGoalRecent(key) {
+        if (!key) return;
+        // clear existing timeout for this key
+        try {
+            const prev = this._recentGoalTimeouts?.[key];
+            if (prev) clearTimeout(prev);
+        } catch (e) {}
+        // mark as recent
+        this._recentGoals.add(String(key));
+        // set timeout to clear recent flag after window
+        try {
+            this._recentGoalTimeouts[String(key)] = setTimeout(() => {
+                try { this._recentGoals.delete(String(key)); } catch (e) {}
+                try { delete this._recentGoalTimeouts[String(key)]; } catch (e) {}
+                // re-evaluate whether to keep speed boost
+                try { this._checkAllRecentGoals(); } catch (e) {}
+            }, this._speedBoostDurationMs);
+        } catch (e) {}
+        // check whether all non-time goals are recent now
+        try { this._checkAllRecentGoals(); } catch (e) {}
+    }
+
+    _checkAllRecentGoals() {
+        const relevantGoals = this.goals.filter(x => x.kind !== 'time');
+        if (!relevantGoals || relevantGoals.length === 0) {
+            // nothing to consider
+            return;
+        }
+        const allRecent = relevantGoals.every(g => this._recentGoals.has(String(g.key)));
+        if (allRecent) {
+            if (!this._speedBoostActive) this._activateSpeedBoost();
+        } else {
+            if (this._speedBoostActive) this._deactivateSpeedBoost();
         }
     }
 

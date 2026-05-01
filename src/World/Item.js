@@ -24,8 +24,20 @@ export default class Item {
         // simple physics (not used yet)
         const prevX = this._lastX ?? this.x;
         const prevY = this._lastY ?? this.y;
-        this.x += this.vx * (delta / 1000);
-        this.y += this.vy * (delta / 1000);
+        // compute intended displacement (in tiles). clamp to avoid skipping collisions when delta or velocities are large
+        const intendedDx = this.vx * (delta / 1000);
+        const intendedDy = this.vy * (delta / 1000);
+        const dist = Math.hypot(intendedDx, intendedDy);
+        const maxTilesPerStep = 0.1; // don't allow movement >= 1 tile/frame to avoid skipping colliders
+        let dx = intendedDx;
+        let dy = intendedDy;
+        if (dist > 0 && dist > maxTilesPerStep) {
+            const scale = maxTilesPerStep / dist;
+            dx = intendedDx * scale;
+            dy = intendedDy * scale;
+        }
+        this.x += dx;
+        this.y += dy;
         this.vx *= 0;
         this.vy *= 0;
         // reset age if the item moved since last update

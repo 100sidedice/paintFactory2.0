@@ -3,13 +3,19 @@
 <head>
   <meta charset="utf-8">
   <title>Paint Factory — Win</title>
+  <link rel="stylesheet" href="Pages/win.css">
 </head>
 <body>
-  <h1>You Win!</h1>
-  <button id="prevBtn">Prev</button>
-  <button id="retryBtn">Retry</button>
-  <button id="nextBtn">Next</button>
-  <button id="levelSelectBtn">Level Select</button>
+  <canvas id="Draw" width="800" height="600"></canvas>
+  <div id="win-ui">
+    <h1>You Win!</h1>
+    <div id="win-buttons">
+      <button id="prevBtn" class="win-button">Prev</button>
+      <button id="retryBtn" class="win-button">Retry</button>
+      <button id="nextBtn" class="win-button">Next</button>
+      <button id="levelSelectBtn" class="win-button">Level Select</button>
+    </div>
+  </div>
 
   <script>
     // Determine current level. Prefer stored value in localStorage (`pf_selectedLevel`),
@@ -62,5 +68,6 @@
       location.href = 'game.html';
     });
   </script>
+  <script type="module" src="Pages/win.js"></script>
 </body>
 </html>

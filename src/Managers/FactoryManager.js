@@ -14,6 +14,9 @@ export default class FactoryManager {
         this.drawQueue = [[],[],[],[]];
         this.generateQueue();
 
+        // multiplier to speed up update deltas (1 = normal speed)
+        this.speedMultiplier = 1;
+
         this.selectedCells = new Set(); // Store selected cells as "x,y" strings for easy add/remove/check
         this.copiedCells = new Set(); // cells that were copied (rendered green)
         // test
@@ -377,6 +380,10 @@ export default class FactoryManager {
         else this.pause();
     }
     update(delta){
+        // apply speed multiplier to delta when not paused
+        const mult = (this.speedMultiplier && !this.paused) ? this.speedMultiplier : 1;
+        const effDelta = (delta || 0) * mult;
+
         for (let i = 0; i < this.grid.length; i++) {
             for (let j = 0; j < this.grid[i].length; j++) {
                 const machine = this.grid[i][j];
@@ -384,18 +391,19 @@ export default class FactoryManager {
                 if (!machine.update) continue;
                 if (this.paused) {
                     machine.updateRotation(delta);
-                }else{
-                    machine.update(delta);
+                } else {
+                    machine.update(effDelta);
                 }
             }
         }
+
         // Update items
-        if(this.paused) return; // skip item updates when paused
+        if (this.paused) return; // skip item updates when paused
         const size = window.innerHeight / 9;
         for (const itemId in this.items) {
             const it = this.items[itemId];
             if (!it) continue;
-            if (it.update) it.update(delta);
+            if (it.update) it.update(effDelta);
 
             // Collision check
             const cellX = Math.floor(it.x);

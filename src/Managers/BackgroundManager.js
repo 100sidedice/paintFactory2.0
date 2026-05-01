@@ -132,16 +132,19 @@ export default class BackgroundManager {
         const th = this.map.tileheight;
         const cols = ts.columns || Math.max(1, Math.floor(this.tilesetImage.width / tw));
 
-        // compute scale to cover the canvas while preserving aspect ratio
-        const canvasW = window.innerWidth; // use window width to ensure full horizontal coverage
-        const canvasH = window.innerHeight; // use window height to ensure full vertical coverage
+        // compute scale so one map-tile maps to the same on-screen pixels
+        // as the factory grid (factory uses window.innerHeight / 9 per-row size).
+        const canvasW = window.innerWidth;
+        const canvasH = window.innerHeight;
         const mapPixelW = this.map.width * tw;
         const mapPixelH = this.map.height * th;
-        const scale = Math.max(canvasH / mapPixelH, canvasH / mapPixelH);
+        // keep vertical scale so map rows line up with factory rows (tileheight * scale === window.innerHeight / 9)
+        const scale = canvasH / mapPixelH;
         const destW = mapPixelW * scale;
         const destH = mapPixelH * scale;
-        const offsetX = Math.round((canvasW - destW) / 2);
-        const offsetY = Math.round((canvasH - destH) / 2);
+        // align map to top-left so its tile grid matches factory grid origin
+        const offsetX = 0;
+        const offsetY = 0;
 
         // disable smoothing for pixel-art background rendering
         ctx.save();
