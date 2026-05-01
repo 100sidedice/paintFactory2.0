@@ -44,11 +44,9 @@ export default class GoalManager {
     }
 
     _notifySpeedBoostListeners() {
-        try {
-            for (const fn of this._speedBoostListeners) {
-                try { fn({ available: this._speedBoostAvailable, active: this._speedBoostActive }); } catch (e) {}
-            }
-        } catch (e) {}
+        for (const fn of this._speedBoostListeners) {
+            fn({ available: this._speedBoostAvailable, active: this._speedBoostActive });
+        }
     }
 
     toggleSpeedBoost() {
@@ -273,6 +271,10 @@ export default class GoalManager {
 
     // record a sold item color (int hex or css); increments have count for matching goal if present
     recordSale(color) {
+        const machineGoals = this.goals.filter(g => g.kind === 'machine');
+        // if any machine goals are not met, don't count sales towards color goals yet, to encourage completing machine goals first
+        const unmetMachineGoals = machineGoals.filter(g => (g.have || 0) < (g.need || 0));
+        if (unmetMachineGoals.length > 0) return;
         if (color === null || color === undefined) return;
         let colInt = null;
         try { colInt = intHex(color); } catch (e) { colInt = Number(color); }

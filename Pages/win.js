@@ -29,7 +29,7 @@ function update(delta) {
         const w = canvas.width;
         const burstX = Math.random() * w;
         // vibrant palette (more saturated / bright)
-        const vibrant = [0xFF1A1AFF, 0xFFB400FF, 0xFFD700FF, 0x00FF8CFF, 0x00E5FFFF, 0xFF6A00FF, 0xFF66EEFF];
+        const vibrant = [0xFF1A1AFF, 0xFFB400FF, 0xFFD700FF, 0x00FF8CFF, 0x00E5FFFF, 0xFF6A00FF, 0xFF66EEFF, 0xFFFFFFFF];
         particleManager.spawnAt(burstX, -10, { count: 18, speed: 420, life: 2200, colors: vibrant, gravityStrength: 900, size: 12, lifetimeNoise: 0.35, speedNoise: 0.4 });
         spawnTimer = spawnInterval + Math.random() * 220;
     }

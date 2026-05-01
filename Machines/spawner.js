@@ -79,14 +79,14 @@ export default class spawner extends MachineBase {
 // Cache for colorized tiles: key -> HTMLCanvasElement
 const _colorizedTileCache = new Map();
 
-function getImageId(img) {
+export function getImageId(img) {
     if (!img) return 'img:null';
     if (img.src) return img.src;
     // fallback for canvases or other sources
     return `canvas:${img.width}x${img.height}`;
 }
 
-function hexToRgba(hex32) {
+export function hexToRgba(hex32) {
     const v = intHex(hex32) >>> 0;
     const r = (v >>> 24) & 0xFF;
     const g = (v >>> 16) & 0xFF;
@@ -95,7 +95,7 @@ function hexToRgba(hex32) {
     return [r, g, b, a];
 }
 
-function getColorizedTile(img, sx, sy, tw, th, newColor, maskColor=0x1C1C1CFF) {
+export function getColorizedTile(img, sx, sy, tw, th, newColor, maskColor=0x1C1C1CFF) {
     const id = `${getImageId(img)}|${sx},${sy},${tw},${th}|${(intHex(newColor)>>>0).toString(16)}`;
     if (_colorizedTileCache.has(id)) return _colorizedTileCache.get(id);
 

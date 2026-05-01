@@ -29,14 +29,13 @@ canvas {
     z-index: 1;
 }
 h1 {
-    cursor: grab;
     position: fixed;
     top: 0%;
     left: 5%;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     font-size: 6em;
     z-index: 2;
-
+    cursor:default;
     background:linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);
     background-clip: text; 
     -webkit-background-clip: text; 

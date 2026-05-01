@@ -67,8 +67,16 @@ table {
     background: radial-gradient(circle at 50% 50%,#11001177, #110011CC); /* semi-transparent black */
     z-index: 1;
 }
-#backBtn:hover { background-color: #999999FF; transform: scale(1.03) rotate(-0.5deg); }
-#backBtn:active { background-color: #225522FF; transform: scale(0.98) rotate(0.5deg); }
+#backBtn:hover { 
+    background-color: #999999FF; 
+    transform: scale(1.03) rotate(-0.5deg); 
+}
+#backBtn:active { 
+    background-color: #225522FF; 
+    transform: scale(0.98) 
+    rotate(0.5deg); 
+    cursor: grabbing; 
+}
 
 /* Level buttons: large, consistent with title UI */
 #levels td {

@@ -1,8 +1,9 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
 import { addHex32, subHex32, stringHex, intHex } from "../Helpers/colorHelpers.js";
-
+import { getImageId, hexToRgba, getColorizedTile } from "../../Machines/spawner.js";
 export default class SidebarManager {
     constructor(assetManager, input, factoryManager, dataManager, particleManager) {
+        console.log('SidebarManager constructor');
         this.assetManager = assetManager;
         this.input = input;
         this.factoryManager = factoryManager;
@@ -17,6 +18,7 @@ export default class SidebarManager {
         this.lastRotateTarget = null; // 'slot' | 'machine' | 'selection'
         this._lastTap = { time: 0, x: -1, y: -1 };
         this._iconAnimReq = null;
+        this.spawnerColor = 0x1C1C1CFF
     }
 
     populateSidebar(levelData) {
@@ -113,6 +115,7 @@ export default class SidebarManager {
                 colorText.addEventListener('click', (e) => {
                     e.stopPropagation();
                     slot.dataset.spawnerColor = colorText.dataset.color;
+                    this.spawnerColor = intHex(colorText.dataset.color);
                     const entries = Array.from(list.querySelectorAll('.spawner-color'));
                     entries.forEach(el => el.classList.toggle('selected', el.dataset.color === slot.dataset.spawnerColor));
                 });
@@ -167,26 +170,7 @@ export default class SidebarManager {
     }
 
     _drawIcon(icon, type) {
-        const ctx = icon.getContext('2d');
-        ctx.clearRect(0, 0, icon.width, icon.height);
-        if (type === 'delete') {
-            const deleteImg = this.assetManager.get('delete');
-            if (deleteImg) ctx.drawImage(deleteImg, 0, 0, icon.width, icon.height);
-            return;
-        }
-        const img = this.assetManager.get('machines-image');
-        if (!img || !this.dataManager) return;
-        const data = this.dataManager.getData(joinDots('machineData', type)) ?? {};
-        const row = (data.texture && data.texture.row) ?? 0;
-        const tw = 16; const th = 16;
-        const cols = Math.max(1, Math.floor(img.width / tw));
-        const tileIndex = row * cols;
-        const sx = 0;
-        const sy = Math.floor(tileIndex / cols) * th;
-        ctx.drawImage(img, sx, sy, tw, th, 0, 0, icon.width, icon.height);
-    }
-
-    _drawIconFrame(icon, type, nowMs) {
+        console.log(`hello`);
         const ctx = icon.getContext('2d');
         ctx.clearRect(0, 0, icon.width, icon.height);
         if (type === 'delete') {
@@ -196,6 +180,37 @@ export default class SidebarManager {
         }
         const img = this.assetManager.get('machines-image');
         if (!img) return;
+        if (!img || !this.dataManager) return;
+        const data = this.dataManager.getData(joinDots('machineData', type)) ?? {};
+        const row = (data.texture && data.texture.row) ?? 0;
+        const tw = 16; const th = 16;
+        const cols = Math.max(1, Math.floor(img.width / tw));
+        const tileIndex = row * cols;
+        const sx = 0;
+        const sy = Math.floor(tileIndex / cols) * th;
+        console.log('drawing spawner icon with color');
+        if(type === 'spawner'){
+            const maskColor = 0x1C1C1CFF;
+            const color = this.spawnerColor;
+            const tile = getColorizedTile(img, sx, sy, tw, th, color, maskColor);
+            console.log('drawing spawner icon with color', stringHex(color));
+            ctx.drawImage(tile, 0, 0, icon.width, icon.height);
+            return;
+        }
+        ctx.drawImage(img, sx, sy, tw, th, 0, 0, icon.width, icon.height);
+    }
+
+    _drawIconFrame(icon, type, nowMs) {
+        console.log(`_drawIconFrame: type=${type}, nowMs=${nowMs}`);
+        const ctx = icon.getContext('2d');
+        ctx.clearRect(0, 0, icon.width, icon.height);
+        if (type === 'delete') {
+            const deleteImg = this.assetManager.get('delete');
+            if (deleteImg) ctx.drawImage(deleteImg, 0, 0, icon.width, icon.height);
+            return;
+        }
+        const img = this.assetManager.get('machines-image');
+        
         const data = this.dataManager.getData(joinDots('machineData', type)) ?? {};
         const row = data.texture.row;
         const tw = 16; 
@@ -208,6 +223,14 @@ export default class SidebarManager {
         const frame = Math.floor((nowMs * fps) / 1000) % cols;
         const sx = frame * tw;
         const sy = Math.floor(tileIndex / cols) * th;
+        console.log('drawing spawner icon with color');
+        if(type === 'spawner'){
+            const maskColor = 0x1C1C1CFF;
+            const color = this.spawnerColor;
+            const tile = getColorizedTile(img, sx, sy, tw, th, color, maskColor);
+            ctx.drawImage(tile, 0, 0, icon.width, icon.height);
+            return;
+        }
         ctx.drawImage(img, sx, sy, tw, th, 0, 0, icon.width, icon.height);
     }
 
@@ -320,18 +343,18 @@ export default class SidebarManager {
                     const isSel = sel && sel.toLowerCase() === color.toLowerCase();
                     colorEl.classList.toggle('selected', isSel);
                     if (isSel) {
-                            // choose white glow for very dark colors (sum RGB <= 256)
-                            const glowColor = (() => {
-                                try {
-                                    const v = intHex(color) >>> 0;
-                                    const r = (v >>> 24) & 0xFF;
-                                    const g = (v >>> 16) & 0xFF;
-                                    const b = (v >>> 8) & 0xFF;
-                                    return (r + g + b <= 256) ? '#FFFFFFFF' : color;
-                                } catch (e) { return color; }
-                            })();
-                            colorEl.style.textShadow = `0 0 6px ${glowColor}`;
-                            colorEl.style.filter = `drop-shadow(0 0 6px ${glowColor})`;
+                        // choose white glow for very dark colors (sum RGB <= 256)
+                        const glowColor = (() => {
+                            try {
+                                const v = intHex(color) >>> 0;
+                                const r = (v >>> 24) & 0xFF;
+                                const g = (v >>> 16) & 0xFF;
+                                const b = (v >>> 8) & 0xFF;
+                                return (r + g + b <= 256) ? '#FFFFFFFF' : color;
+                            } catch (e) { return color; }
+                        })();
+                        colorEl.style.textShadow = `0 0 6px ${glowColor}`;
+                        colorEl.style.filter = `drop-shadow(0 0 6px ${glowColor})`;
                     } else {
                         colorEl.style.textShadow = '';
                         colorEl.style.filter = '';
