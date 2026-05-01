@@ -67,18 +67,18 @@ export default class AssetManager {
                     const capName = capitalize(nameHint);
                     const capKey = capitalize(key);
                     if (typeHint === 'json') {
-                        candidates = [`/${path}/${capName}.json`, `/${path}/${capKey}.json`];
+                        candidates = [`${path}/${capName}.json`, `${path}/${capKey}.json`];
                     } else if (typeHint === 'image') {
-                        candidates = [`/${path}/${capName}.png`, `/${path}/${capName}.jpg`, `/${path}/${capKey}.png`, `/${path}/${capKey}.jpg`];
+                        candidates = [`${path}/${capName}.png`, `${path}/${capName}.jpg`, `${path}/${capKey}.png`, `${path}/${capKey}.jpg`];
                     } else if (typeHint === 'module' || typeHint === 'js' || typeHint === 'script') {
-                        candidates = [`/${path}/${capName}.js`, `/${path}/${capKey}.js`];
+                        candidates = [`${path}/${capName}.js`, `${path}/${capKey}.js`];
                     } else {
                         // unknown: try capitalized variants only to reduce irrelevant probes
                         candidates = [
-                            `/${path}/${capName}.json`,
-                            `/${path}/${capName}.png`,
-                            `/${path}/${capName}.jpg`,
-                            `/${path}/${capName}.js`,
+                            `${path}/${capName}.json`,
+                            `${path}/${capName}.png`,
+                            `${path}/${capName}.jpg`,
+                            `${path}/${capName}.js`,
                         ];
                     }
                     let picked = null;
@@ -119,7 +119,7 @@ export default class AssetManager {
             case 'module-folder':
                 const moduleFolder = {};
                 for (const [key, val] of Object.entries(extra)) {
-                    moduleFolder[key] = await preloadModule(`/${path}/${key}.js`);
+                    moduleFolder[key] = await preloadModule(`${path}/${key}.js`);
                 }
                 result = moduleFolder;
                 break;
