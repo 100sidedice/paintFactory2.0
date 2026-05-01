@@ -10,7 +10,7 @@ canvas {
     transform: translateX(-50%);
     z-index: 1;
     /* keep pointer events so canvas still receives input where it is visible */
-    pointer-events: auto;
+    pointer-events: none;
     image-rendering: pixelated;
     user-select: none; /* prevent text selection on drag */
 }
@@ -260,9 +260,15 @@ canvas {
     font-size: 30px;
     white-space: nowrap; /* prevent wrapping */
     z-index: 51;
-    pointer-events: none;
+    pointer-events: auto;
     text-shadow: #000000FF 0px 0px 8px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Generic UI helper: ensure interactive UI sits above canvas */
+.ui {
+    pointer-events: auto !important;
+    z-index: 6000 !important;
 }
 
 /* Reset button placed in bottom-right corner matching UI style */

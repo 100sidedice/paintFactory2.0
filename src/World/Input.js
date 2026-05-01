@@ -135,7 +135,9 @@ export default class Input {
     // internal: execute handlers for a key string, passing optional arg to callbacks
     _executeHandlers(key, arg) {
         const hasKey = this.keyMap.has(key);
-        if (this._isOverUI(this.mousePos.x, this.mousePos.y)) return;
+        // Allow wheel handlers to run even when pointer is over UI (sidebar uses wheel for rotate)
+        const overUI = this._isOverUI(this.mousePos.x, this.mousePos.y);
+        if (overUI && !(typeof key === 'string' && key.startsWith('wheel:'))) return;
         // set current trigger so handlers can call block() to auto-bind to this trigger
         this._currentTriggerKey = key;
         try {

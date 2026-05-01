@@ -25,6 +25,8 @@ export default class GoalManager {
         this._speedBoostDurationMs = 3000; // 3 seconds window to consider a goal 'recent'
         this._speedBoostMultiplier = 10; // 10x speed
         this._speedBoostActive = false;
+        this._speedBoostAvailable = false;
+        this._speedBoostListeners = [];
 
         // Hook into SidebarManager updates so machine counts refresh when sidebar changes
         const sb = this.levelManager?.sidebarManager;
@@ -36,16 +38,32 @@ export default class GoalManager {
         }
     }
 
+    addSpeedBoostListener(fn) {
+        if (typeof fn !== 'function') return;
+        this._speedBoostListeners.push(fn);
+    }
+
+    _notifySpeedBoostListeners() {
+        try {
+            for (const fn of this._speedBoostListeners) {
+                try { fn({ available: this._speedBoostAvailable, active: this._speedBoostActive }); } catch (e) {}
+            }
+        } catch (e) {}
+    }
+
+    toggleSpeedBoost() {
+        if (this._speedBoostActive) this._deactivateSpeedBoost();
+        else if (this._speedBoostAvailable) this._activateSpeedBoost();
+    }
+
     populate(goalObj) {
         this._stopGoalAnimLoop();
         this.goals = [];
         this.container.innerHTML = '';
         // clear any recent-goal timers when populating new goals
-        try {
-            for (const k of Object.keys(this._recentGoalTimeouts || {})) {
-                const t = this._recentGoalTimeouts[k]; if (t) clearTimeout(t);
-            }
-        } catch (e) {}
+        for (const k of Object.keys(this._recentGoalTimeouts || {})) {
+            const t = this._recentGoalTimeouts[k]; if (t) clearTimeout(t);
+        }
         this._recentGoals = new Set(); this._recentGoalTimeouts = {};
         this._timeExpired = false;
         this._winTriggered = false;
@@ -266,7 +284,7 @@ export default class GoalManager {
                 if (g.haveEl) g.haveEl.textContent = String(g.have);
                 this._updateGoalState(g);
                 // mark this goal as recently received and check whether all goals are recent
-                try { this._markGoalRecent(g.key); } catch (e) {}
+                this._markGoalRecent(g.key);
                 return;
             }
         }
@@ -274,19 +292,17 @@ export default class GoalManager {
 
     _activateSpeedBoost() {
         // enable multiplier on factoryManager
-        try {
-            if (this.factoryManager) {
-                this.factoryManager.speedMultiplier = this._speedBoostMultiplier;
-                this._speedBoostActive = true;
-            }
-        } catch (e) {}
+        this.factoryManager.speedMultiplier = this._speedBoostMultiplier;
+        this._speedBoostActive = true;
+        this._speedBoostAvailable = true;
+        this._notifySpeedBoostListeners();
     }
 
     _deactivateSpeedBoost() {
-        try {
-            if (this.factoryManager) this.factoryManager.speedMultiplier = 1;
-        } catch (e) {}
+        if (this.factoryManager) this.factoryManager.speedMultiplier = 1;
         this._speedBoostActive = false;
+        this._speedBoostAvailable = false;
+        this._notifySpeedBoostListeners();
     }
 
     // record an item colliding with a machine at grid cell (x,y)
@@ -356,11 +372,15 @@ export default class GoalManager {
             return;
         }
         const allRecent = relevantGoals.every(g => this._recentGoals.has(String(g.key)));
+        const prevAvailable = this._speedBoostAvailable;
         if (allRecent) {
-            if (!this._speedBoostActive) this._activateSpeedBoost();
+            this._speedBoostAvailable = true;
+            // do not auto-activate; wait for user to toggle
         } else {
+            this._speedBoostAvailable = false;
             if (this._speedBoostActive) this._deactivateSpeedBoost();
         }
+        if (prevAvailable !== this._speedBoostAvailable) this._notifySpeedBoostListeners();
     }
 
     _refreshAllGoals() {

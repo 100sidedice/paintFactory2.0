@@ -10,6 +10,33 @@ export default class LevelManager {
         this.particleManager = particleManager;
         this.sidebarManager = new SidebarManager(this.assetManager, this.input, this.factoryManager, this.dataManager, this.particleManager);
         this.goalManager = new GoalManager(this.assetManager, this.factoryManager, this);
+        this._originalFunnyText = '';
+        // Listen for speed-boost availability/active changes and update funny-text accordingly
+        this.goalManager.addSpeedBoostListener(({ available, active }) => {
+            const el = document.querySelector('#funny-text');
+            if (!el) return;
+            if (active) {
+                el.textContent = 'Click here to slow down';
+                el.style.cursor = 'pointer';
+            } else if (available) {
+                el.textContent = 'Press here to speed up';
+                el.style.cursor = 'pointer';
+            } else {
+                el.textContent = this.currentLevelData?.funny ?? this._originalFunnyText ?? '';
+                el.style.cursor = 'default';
+            }
+        });
+        // Use Input manager instead of DOM clicks: register a mouse:left:press binding
+        this.input.addBinding('mouse', 'left', 'press', () => {
+            const funnyEl = document.querySelector('#funny-text');
+            if (!funnyEl) return;
+            const rect = funnyEl.getBoundingClientRect();
+            const mx = this.input.mousePos.x; 
+            const my = this.input.mousePos.y;
+            if (mx >= rect.left && mx <= rect.right && my >= rect.top && my <= rect.bottom) {
+                this.goalManager.toggleSpeedBoost();
+            }
+        }, 'funny-area', 1);
     }
     
     async init(levelKey = null) {
@@ -60,38 +87,31 @@ export default class LevelManager {
         // place machines from levelData.Placed (or placed) into the grid
         const placedObj = levelData.Placed ?? levelData.placed ?? null;
         if (placedObj && this.factoryManager) {
-            try {
-                for (const coordKey of Object.keys(placedObj)) {
-                    const raw = placedObj[coordKey];
-                    let parts = null;
-                    if (coordKey.indexOf(',') !== -1) parts = coordKey.split(',');
-                    else if (coordKey.indexOf('.') !== -1) parts = coordKey.split('.');
-                    if (!parts || parts.length < 2) continue;
-                    const x = parseInt(parts[0], 10);
-                    const y = parseInt(parts[1], 10);
-                    if (Number.isNaN(x) || Number.isNaN(y)) continue;
-                    let type = null; let rot = 0;
-                    if (typeof raw === 'string') type = raw;
-                    else if (raw && typeof raw === 'object') { type = raw.type || raw.name || null; rot = raw.rot || 0; }
-                    if (!type) continue;
-                    try {
-                        const placedMachine = this.factoryManager.addMachine(type.split(' ')[0], x, y, rot);
-                        // if the type string includes a color token (e.g. "spawner #RRGGBBAA"), parse and apply
-                        const tokens = String(type).trim().split(/\s+/);
-                        const last = tokens[tokens.length-1];
-                        const colorMatch = /^#?[0-9A-Fa-f]{8}$/.test(last) ? last.replace(/^#/, '') : null;
-                        if (colorMatch && placedMachine) {
-                            // convert to integer 32-bit
-                            const intVal = parseInt(colorMatch, 16) >>> 0;
-                            placedMachine.data = placedMachine.data || {};
-                            placedMachine.data.color = intVal;
-                            placedMachine.color = intVal;
-                        }
-                    } catch (e) { /* ignore */ }
+            for (const coordKey of Object.keys(placedObj)) {
+                const raw = placedObj[coordKey];
+                let parts = null;
+                if (coordKey.indexOf(',') !== -1) parts = coordKey.split(',');
+                else if (coordKey.indexOf('.') !== -1) parts = coordKey.split('.');
+                if (!parts || parts.length < 2) continue;
+                const x = parseInt(parts[0], 10);
+                const y = parseInt(parts[1], 10);
+                if (Number.isNaN(x) || Number.isNaN(y)) continue;
+                let type = null; let rot = 0;
+                if (typeof raw === 'string') type = raw;
+                else if (raw && typeof raw === 'object') { type = raw.type || raw.name || null; rot = raw.rot || 0; }
+                if (!type) continue;
+                const placedMachine = this.factoryManager.addMachine(type.split(' ')[0], x, y, rot);
+                // if the type string includes a color token (e.g. "spawner #RRGGBBAA"), parse and apply
+                const tokens = String(type).trim().split(/\s+/);
+                const last = tokens[tokens.length-1];
+                const colorMatch = /^#?[0-9A-Fa-f]{8}$/.test(last) ? last.replace(/^#/, '') : null;
+                if (colorMatch && placedMachine) {
+                    // convert to integer 32-bit
+                    const intVal = parseInt(colorMatch, 16) >>> 0;
+                    placedMachine.data = placedMachine.data || {};
+                    placedMachine.data.color = intVal;
+                    placedMachine.color = intVal;
                 }
-                if (typeof this.factoryManager.generateQueue === 'function') this.factoryManager.generateQueue();
-            } catch (e) {
-                console.warn('LevelManager: error placing machines from Placed', e);
             }
         }
 
@@ -99,6 +119,7 @@ export default class LevelManager {
         const desc = levelData.Description ?? 'No description provided for this level.';
         const head = levelData.Header ?? 'No header provided for this level.';
         const funny = levelData.funny ?? '';
+        this._originalFunnyText = funny;
         // clear all three's text before typing or setting them directly
         document.querySelector('#level-id').textContent = '';
         document.querySelector('#level-text').textContent = '';
@@ -112,6 +133,8 @@ export default class LevelManager {
             await this.typeText('#level-text', desc, 30);
             await this.typeText('#funny-text', funny, 30);
         }
+        // Ensure the funny-text element has click wiring after it's present in DOM
+        this._ensureFunnyHandler();
         return true;
     }
 
@@ -163,6 +186,21 @@ export default class LevelManager {
         }
         if (!token.cancelled) el.textContent = text;
         this._typewriterCancelToken = null;
+    }
+
+    _ensureFunnyHandler() {
+        if (this._funnyHandlerAttached) return;
+        const funnyEl = document.querySelector('#funny-text');
+        if (!funnyEl) return;
+        if (!funnyEl.classList.contains('ui')) funnyEl.classList.add('ui');
+        funnyEl.style.pointerEvents = 'auto';
+        // avoid adding multiple listeners
+        const handler = (ev) => {
+            try { if (this.goalManager && typeof this.goalManager.toggleSpeedBoost === 'function') this.goalManager.toggleSpeedBoost(); } catch (e) {}
+            ev.stopPropagation();
+        };
+        funnyEl.addEventListener('click', handler);
+        this._funnyHandlerAttached = true;
     }
 
     // Export current placed machines into a JSON snippet and copy to clipboard.
