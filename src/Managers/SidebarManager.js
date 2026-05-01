@@ -1,5 +1,5 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
-import { addHex32, subHex32, stringHex, intHex } from "../Helpers/colorHelpers.js";
+import { stringHex, intHex } from "../Helpers/colorHelpers.js";
 import { getImageId, hexToRgba, getColorizedTile } from "../../Machines/spawner.js";
 export default class SidebarManager {
     constructor(assetManager, input, factoryManager, dataManager, particleManager) {
@@ -18,23 +18,179 @@ export default class SidebarManager {
         this.lastRotateTarget = null; // 'slot' | 'machine' | 'selection'
         this._lastTap = { time: 0, x: -1, y: -1 };
         this._iconAnimReq = null;
-        this.spawnerColor = 0x1C1C1CFF
+        this.spawnerColor = 0x1C1C1CFF;
+        this.spawnerPanelOpen = false;
+        this.spawnerPanel = null;
+        this.spawnerPanelToggle = null;
+        this.spawnerPanelBody = null;
+    }
+
+    _destroySpawnerPanel() {
+        if (this.spawnerPanel) {
+            this.spawnerPanel.remove();
+            this.spawnerPanel = null;
+            this.spawnerPanelBody = null;
+        }
+        if (this.spawnerPanelToggle) {
+            this.spawnerPanelToggle.remove();
+            this.spawnerPanelToggle = null;
+        }
+    }
+
+    _syncSpawnerPanelVisibility() {
+        if (this.spawnerPanelToggle) {
+            this.spawnerPanelToggle.textContent = this.spawnerPanelOpen ? '◀' : '▶';
+            this.spawnerPanelToggle.setAttribute('aria-expanded', this.spawnerPanelOpen ? 'true' : 'false');
+        }
+        if (this.spawnerPanel) {
+            this.spawnerPanel.classList.toggle('open', this.spawnerPanelOpen);
+        }
+    }
+
+    _syncSpawnerPanelPlacement() {
+        const hasSpawner = !!(this.spawnerItems?.length && this.slots?.some((slot) => slot.classList.contains('spawner-slot')));
+        if (!hasSpawner) {
+            this.spawnerPanelOpen = false;
+            if (this.spawnerPanelToggle) this.spawnerPanelToggle.style.display = 'none';
+            if (this.spawnerPanel) this.spawnerPanel.style.display = 'none';
+            return;
+        }
+
+        const spawnerSlot = this.slots.find((slot) => slot.classList.contains('spawner-slot'));
+        if (!spawnerSlot) return;
+
+        const slotRect = spawnerSlot.getBoundingClientRect();
+        if (this.spawnerPanelToggle) {
+            this.spawnerPanelToggle.style.display = 'flex';
+            this.spawnerPanelToggle.style.top = `${slotRect.top}px`;
+            this.spawnerPanelToggle.style.height = `${slotRect.height}px`;
+        }
+        if (this.spawnerPanel) {
+            this.spawnerPanel.style.display = '';
+            this.spawnerPanel.style.top = `${slotRect.top}px`;
+        }
+    }
+
+    _ensureSpawnerPanel() {
+        if (!this.spawnerItems || !this.spawnerItems.length) {
+            this._destroySpawnerPanel();
+            return;
+        }
+
+        if (!this.spawnerPanelToggle) {
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'spawner-panel-toggle';
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.spawnerPanelOpen = !this.spawnerPanelOpen;
+                this._syncSpawnerPanelVisibility();
+            });
+            document.body.appendChild(toggle);
+            this.spawnerPanelToggle = toggle;
+        }
+
+        if (!this.spawnerPanel) {
+            const panel = document.createElement('aside');
+            panel.className = 'spawner-panel';
+
+            const body = document.createElement('div');
+            body.className = 'spawner-panel-body';
+            panel.appendChild(body);
+
+            document.body.appendChild(panel);
+            this.spawnerPanel = panel;
+            this.spawnerPanelBody = body;
+        }
+
+        this._syncSpawnerPanelVisibility();
+        this._syncSpawnerPanelPlacement();
+        this._renderSpawnerPanel();
+    }
+
+    _drawSpawnerPreview(canvas, color) {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        canvas.width = 16;
+        canvas.height = 16;
+        canvas.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const img = this.assetManager.get('machines-image');
+        if (!img || !this.dataManager) return;
+
+        const data = this.dataManager.getData(joinDots('machineData', 'spawner')) ?? {};
+        const row = (data.texture && data.texture.row) ?? 0;
+        const tw = 16;
+        const th = 16;
+        const cols = Math.max(1, Math.floor(img.width / tw));
+        const tileIndex = row * cols;
+        const sx = 0;
+        const sy = Math.floor(tileIndex / cols) * th;
+        const tile = getColorizedTile(img, sx, sy, tw, th, color, 0x1C1C1CFF);
+        ctx.drawImage(tile, 0, 0, canvas.width, canvas.height);
+    }
+
+    _renderSpawnerPanel() {
+        if (!this.spawnerPanelBody) return;
+        const selectedColor = this._getSelectedSpawnerColor();
+        const selectedCss = selectedColor === null ? null : stringHex(selectedColor);
+        this.spawnerPanelBody.innerHTML = '';
+
+        const colors = (this.spawnerItems ?? []).filter((si) => {
+            if (!si || si.color === null || si.color === undefined) return false;
+            if (selectedCss === null) return true;
+            return stringHex(si.color).toLowerCase() !== selectedCss.toLowerCase();
+        });
+
+        if (!colors.length) {
+            return;
+        }
+
+        for (const si of colors) {
+            const color = intHex(si.color);
+            const entry = document.createElement('button');
+            entry.type = 'button';
+            entry.className = 'spawner-panel-entry';
+            entry.dataset.color = stringHex(color);
+            entry.title = `Select ${stringHex(color)}`;
+            entry.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._setSpawnerColor(entry.dataset.color);
+            });
+
+            const icon = document.createElement('canvas');
+            icon.className = 'spawner-panel-icon';
+            this._drawSpawnerPreview(icon, color);
+            entry.appendChild(icon);
+
+            const count = document.createElement('span');
+            count.className = 'spawner-panel-count';
+            count.textContent = String(this._getSpawnerRemaining(color));
+            entry.appendChild(count);
+            this.spawnerPanelBody.appendChild(entry);
+        }
     }
 
     populateSidebar(levelData) {
         this._stopIconAnimationLoop();
+        this._destroySpawnerPanel();
         this.sidebar.innerHTML = '';
         this.slots = [];
         const machines = levelData.Machines ?? [];
         this.spawnerItems = levelData['spawner-items'] ?? [];
 
-        this.initialSpawnerCounts = {};
         this.initialSpawnerCountsInt = {};
         for (const si of this.spawnerItems) {
             si.color = intHex(si.color);
-            const cssKey = stringHex(si.color);
-            this.initialSpawnerCounts[cssKey] = si.count ?? 0;
             this.initialSpawnerCountsInt[si.color] = si.count ?? 0;
+        }
+        if (this.spawnerItems.length > 0) {
+            const firstColor = this.spawnerItems[0]?.color;
+            if (firstColor !== undefined && firstColor !== null) {
+                this.spawnerColor = intHex(firstColor);
+            }
         }
 
         this.initialCounts = {};
@@ -56,8 +212,10 @@ export default class SidebarManager {
             this._addSlot(variants);
         }
 
+        this._ensureSpawnerPanel();
         this._startIconAnimationLoop();
         this._refreshAllSlots();
+        requestAnimationFrame(() => this._syncSpawnerPanelPlacement());
     }
 
     _addSlot(variants) {
@@ -100,29 +258,7 @@ export default class SidebarManager {
         this._updateSlotCountDisplay(slot);
 
         if (variants.indexOf('spawner') !== -1) {
-            const list = document.createElement('div');
-            list.className = 'spawner-color-list';
-            for (const si of this.spawnerItems) {
-                const wrap = document.createElement('div');
-                wrap.className = 'spawner-color-entry';
-                const colorText = document.createElement('span');
-                colorText.className = 'spawner-color';
-                colorText.textContent = String(si.count ?? 0);
-                colorText.style.color = stringHex(si.color);
-                const css = stringHex(si.color);
-                colorText.dataset.color = css;
-                wrap.appendChild(colorText);
-                colorText.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    slot.dataset.spawnerColor = colorText.dataset.color;
-                    this.spawnerColor = intHex(colorText.dataset.color);
-                    const entries = Array.from(list.querySelectorAll('.spawner-color'));
-                    entries.forEach(el => el.classList.toggle('selected', el.dataset.color === slot.dataset.spawnerColor));
-                });
-                list.appendChild(wrap);
-            }
-            slot.appendChild(list);
-            if (!slot.dataset.spawnerColor) slot.dataset.spawnerColor = stringHex(this.spawnerItems[0].color);
+            slot.classList.add('spawner-slot');
         }
 
         icon.addEventListener('wheel', (e) => {
@@ -223,7 +359,6 @@ export default class SidebarManager {
         const frame = Math.floor((nowMs * fps) / 1000) % cols;
         const sx = frame * tw;
         const sy = Math.floor(tileIndex / cols) * th;
-        console.log('drawing spawner icon with color');
         if(type === 'spawner'){
             const maskColor = 0x1C1C1CFF;
             const color = this.spawnerColor;
@@ -277,6 +412,61 @@ export default class SidebarManager {
         return (allowed - placedSpawners);
     }
 
+    _getSelectedSpawnerColor() {
+        if (this.spawnerColor !== null && this.spawnerColor !== undefined) {
+            return this.spawnerColor;
+        }
+        return this.spawnerItems?.[0]?.color ?? null;
+    }
+
+    _setSpawnerColor(color) {
+        if (color === null || color === undefined) return;
+        this.spawnerColor = intHex(color);
+        this._refreshSpawnerColorLists();
+        this._renderSpawnerPanel();
+        this._refreshAllSlots();
+    }
+
+    _updateSpawnerColorList(list) {
+        if (!list) return;
+        const selectedColor = this._getSelectedSpawnerColor();
+        const selectedCss = selectedColor === null ? null : stringHex(selectedColor);
+        const entries = Array.from(list.querySelectorAll('.spawner-color'));
+        for (const colorEl of entries) {
+            const color = colorEl.dataset.color;
+            if (!color) continue;
+            const rem = this._getSpawnerRemaining(color);
+            colorEl.textContent = String(rem);
+            const isSel = selectedCss && color.toLowerCase() === selectedCss.toLowerCase();
+            colorEl.classList.toggle('selected', !!isSel);
+            if (isSel) {
+                const glowColor = (() => {
+                    try {
+                        const v = intHex(color) >>> 0;
+                        const r = (v >>> 24) & 0xFF;
+                        const g = (v >>> 16) & 0xFF;
+                        const b = (v >>> 8) & 0xFF;
+                        return (r + g + b <= 256) ? '#FFFFFFFF' : color;
+                    } catch (e) { return color; }
+                })();
+                colorEl.style.textShadow = `0 0 6px ${glowColor}`;
+                colorEl.style.filter = `drop-shadow(0 0 6px ${glowColor})`;
+            } else {
+                colorEl.style.textShadow = '';
+                colorEl.style.filter = '';
+            }
+        }
+    }
+
+    _refreshSpawnerColorLists() {
+        this._renderSpawnerPanel();
+        if (!this.slots || !this.slots.length) return;
+        for (const slot of this.slots) {
+            const spList = slot.querySelector('.spawner-color-list');
+            if (spList) this._updateSpawnerColorList(spList);
+        }
+    }
+
     _countPlacedOfType(type) {
         let cnt = 0;
         const grid = this.factoryManager.grid;
@@ -298,11 +488,17 @@ export default class SidebarManager {
         const countEl = slot.querySelector('.machine-count');
         const icon = slot.querySelector('canvas.machine-icon');
         const count = this._getSlotRemaining(slot);
+        const isSpawnerSlot = slot.classList.contains('spawner-slot');
         if (countEl) {
-            if (slot.dataset.machineType !== 'delete') {
+            if (isSpawnerSlot) {
+                countEl.textContent = '';
+                countEl.style.display = 'none';
+            } else if (slot.dataset.machineType !== 'delete') {
                 countEl.textContent = String(count);
+                countEl.style.display = '';
             } else {
                 countEl.textContent = '(:';
+                countEl.style.display = '';
             }
             countEl.style.color = (count <= 0) ? 'red' : 'white';
         }
@@ -327,41 +523,14 @@ export default class SidebarManager {
 
     _refreshAllSlots() {
         if (!this.slots || !this.slots.length) return;
+        this._renderSpawnerPanel();
         for (let i = 0; i < this.slots.length; i++) {
             const s = this.slots[i];
             this._updateSlotCountDisplay(s);
             const spList = s.querySelector('.spawner-color-list');
-            if (spList) {
-                const entries = Array.from(spList.querySelectorAll('.spawner-color-entry'));
-                for (const entry of entries) {
-                    const colorEl = entry.querySelector('.spawner-color');
-                    if (!colorEl) continue;
-                    const color = colorEl.dataset.color;
-                    const rem = this._getSpawnerRemaining(color);
-                    colorEl.textContent = String(rem);
-                    const sel = s.dataset.spawnerColor ?? null;
-                    const isSel = sel && sel.toLowerCase() === color.toLowerCase();
-                    colorEl.classList.toggle('selected', isSel);
-                    if (isSel) {
-                        // choose white glow for very dark colors (sum RGB <= 256)
-                        const glowColor = (() => {
-                            try {
-                                const v = intHex(color) >>> 0;
-                                const r = (v >>> 24) & 0xFF;
-                                const g = (v >>> 16) & 0xFF;
-                                const b = (v >>> 8) & 0xFF;
-                                return (r + g + b <= 256) ? '#FFFFFFFF' : color;
-                            } catch (e) { return color; }
-                        })();
-                        colorEl.style.textShadow = `0 0 6px ${glowColor}`;
-                        colorEl.style.filter = `drop-shadow(0 0 6px ${glowColor})`;
-                    } else {
-                        colorEl.style.textShadow = '';
-                        colorEl.style.filter = '';
-                    }
-                }
-            }
+            if (spList) this._updateSpawnerColorList(spList);
         }
+        this._syncSpawnerPanelPlacement();
     }
 
     getSlotRemaining(index) {
@@ -407,35 +576,7 @@ export default class SidebarManager {
                     }
                 }
                 const spList = slot.querySelector('.spawner-color-list');
-                if (spList) {
-                    const entries = Array.from(spList.querySelectorAll('.spawner-color-entry'));
-                    for (const entry of entries) {
-                        const colorEl = entry.querySelector('.spawner-color');
-                        if (!colorEl) continue;
-                        const color = colorEl.dataset.color;
-                        const rem = this._getSpawnerRemaining(color);
-                        colorEl.textContent = String(rem);
-                        const sel = slot.dataset.spawnerColor ?? null;
-                        const isSel = sel && sel.toLowerCase() === color.toLowerCase();
-                        colorEl.classList.toggle('selected', isSel);
-                        if (isSel) {
-                            const glowColor = (() => {
-                                try {
-                                    const v = intHex(color) >>> 0;
-                                    const r = (v >>> 24) & 0xFF;
-                                    const g = (v >>> 16) & 0xFF;
-                                    const b = (v >>> 8) & 0xFF;
-                                    return (r + g + b <= 256) ? '#FFFFFFFF' : color;
-                                } catch (e) { return color; }
-                            })();
-                            colorEl.style.textShadow = `0 0 6px ${glowColor}`;
-                            colorEl.style.filter = `drop-shadow(0 0 6px ${glowColor})`;
-                        } else {
-                            colorEl.style.textShadow = '';
-                            colorEl.style.filter = '';
-                        }
-                    }
-                }
+                if (spList) this._updateSpawnerColorList(spList);
             }
             this._iconAnimReq = requestAnimationFrame(loop);
         };
@@ -629,12 +770,12 @@ export default class SidebarManager {
             }
             if (this._getRemainingCount(type) <= 0) return;
             if (type.split('-')[0] === 'spawner') {
-                if (this._getSpawnerRemaining(slot.dataset.spawnerColor) <= 0) return;
+                if (this._getSpawnerRemaining(this._getSelectedSpawnerColor()) <= 0) return;
             }
             const placed = this.factoryManager.addMachine(type, gridX, gridY, parseInt(slot.dataset.rot ?? '0', 10) || 0);
             if (type.split('-')[0] === 'spawner') {
                 placed.data = placed.data || {};
-                const n = intHex(slot.dataset.spawnerColor);
+                const n = intHex(this._getSelectedSpawnerColor());
                 placed.data.color = n;
                 placed.color = n;
                 this._refreshAllSlots();
@@ -712,11 +853,7 @@ export default class SidebarManager {
                     if (type.split('-')[0] === 'spawner') {
                         const chosen = (machine.data && machine.data.color) || machine.color || null;
                         if (chosen !== null && chosen !== undefined) {
-                            const css = stringHex(chosen);
-                            slot.dataset.spawnerColor = css;
-                            const list = slot.querySelector('.spawner-color-list');
-                            const entries = Array.from(list.querySelectorAll('.spawner-color'));
-                            entries.forEach(el => el.classList.toggle('selected', el.dataset.color === css));
+                            this._setSpawnerColor(chosen);
                         }
                     }
                     return;
@@ -759,11 +896,7 @@ export default class SidebarManager {
                     if (type.split('-')[0] === 'spawner') {
                         const chosen = (machine.data && machine.data.color) || machine.color || null;
                         if (chosen !== null && chosen !== undefined) {
-                            const css = stringHex(chosen);
-                            slot.dataset.spawnerColor = css;
-                            const list = slot.querySelector('.spawner-color-list');
-                            const entries = Array.from(list.querySelectorAll('.spawner-color'));
-                            entries.forEach(el => el.classList.toggle('selected', el.dataset.color === css));
+                            this._setSpawnerColor(chosen);
                         }
                     }
                     return;

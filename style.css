@@ -29,6 +29,96 @@ canvas {
     z-index: 10;
 }
 
+.spawner-panel-toggle {
+    position: fixed;
+    top: 0;
+    left: calc(14.3vh - 8px);
+    width: 22px;
+    height: 13vh;
+    padding: 0;
+    border: 3px solid #00000066;
+    border-left: none;
+    background: #2a2a2aff;
+    color: #FFFFFFFF;
+    font-size: 18px;
+    font-weight: 800;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spawner-panel {
+    position: fixed;
+    top: 2.5vh;
+    left: calc(14.3vh + 14px);
+    width: min(56vh, calc(100vw - 18vh));
+    max-height: 16vh;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px;
+    box-sizing: border-box;
+    background: #202020F2;
+    border: 3px solid #00000066;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-12px);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+    z-index: 12;
+}
+
+.spawner-panel.open {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.spawner-panel-body {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 92px;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.spawner-panel-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 92px;
+    min-height: 92px;
+    padding: 10px 8px;
+    border: 2px solid #00000066;
+    background: #111111CC;
+    color: #FFFFFFFF;
+    cursor: pointer;
+    text-align: center;
+}
+
+.spawner-panel-entry:hover {
+    border-color: #FFFF00FF;
+}
+
+.spawner-panel-icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    image-rendering: pixelated;
+    position: static;
+    transform: none;
+}
+
+.spawner-panel-count {
+    font-weight: 800;
+    text-shadow: 0 0 2px #000000CC;
+    color: #FFFFFFFF;
+    font-size: 18px;
+}
+
 /* Goal sidebar on the right showing goal swatches and counts */
 /* scaled up ~1.5x */
 #goal_sidebar {
@@ -187,6 +277,10 @@ canvas {
     z-index: 20;
     pointer-events: none;
     text-shadow: 0 0 2px #000000CC;
+}
+
+#machine_sidebar .spawner-slot .machine-count {
+    display: none;
 }
 
 /* Debug overlay container */

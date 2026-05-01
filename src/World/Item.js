@@ -30,7 +30,7 @@ export default class Item {
         const dist = Math.hypot(intendedDx, intendedDy);
         const maxTilesPerStep = 0.1; // don't allow movement >= 1 tile/frame to avoid skipping colliders
         let dx = intendedDx;
-        let dy = intendedDy;
+        let dy = intendedDy;  
         if (dist > 0 && dist > maxTilesPerStep) {
             const scale = maxTilesPerStep / dist;
             dx = intendedDx * scale;

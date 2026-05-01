@@ -212,8 +212,8 @@ export default class FactoryManager {
                 if (foundIdx !== -1) {
                     const baseType = (m.type || '').split('-')[0];
                     if (baseType === 'spawner') {
-                        // prefer color stored in clipboard entry, otherwise fall back to slot's selected color
-                        const colorKey = (m.color !== undefined && m.color !== null) ? m.color : (slotEl?.dataset?.spawnerColor ?? null);
+                        // prefer color stored in clipboard entry, otherwise fall back to the shared sidebar color
+                        const colorKey = (m.color !== undefined && m.color !== null) ? m.color : (this.levelManager?.sidebarManager?.spawnerColor ?? null);
                         const remaining = (this.levelManager.getSpawnerRemaining ? this.levelManager.getSpawnerRemaining(colorKey) : 0);
                         const used = usedSpawnerCounts[String(colorKey)] || 0;
                         if ((remaining - used) <= 0) { canPlace = false; reason = 'limit'; }
@@ -299,7 +299,7 @@ export default class FactoryManager {
                 if (foundIdx !== -1 && slotEl) {
                     const base = (m.type || '').split('-')[0];
                     if (base === 'spawner') {
-                        const colorKey = (m.color !== undefined && m.color !== null) ? m.color : (slotEl?.dataset?.spawnerColor ?? null);
+                        const colorKey = (m.color !== undefined && m.color !== null) ? m.color : (this.levelManager?.sidebarManager?.spawnerColor ?? null);
                         const remaining = (this.levelManager.getSpawnerRemaining ? this.levelManager.getSpawnerRemaining(colorKey) : 0);
                         const used = usedSpawnerCounts[String(colorKey)] || 0;
                         if ((remaining - used) <= 0) { canPlace = false; reason = 'limit'; }
