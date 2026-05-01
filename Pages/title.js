@@ -230,3 +230,20 @@ function draw(){
 }
 
 loop();
+
+// cursor: change to grabbing while holding the description link
+(function(){
+    const desc = document.getElementById('description');
+    if (!desc) return;
+    // prefer pointer events for unified mouse/touch
+    const start = (e) => {
+        document.body.classList.add('is-grabbing');
+    };
+    const end = (e) => {
+        document.body.classList.remove('is-grabbing');
+    };
+    desc.addEventListener('pointerdown', start);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    window.addEventListener('blur', end);
+})();

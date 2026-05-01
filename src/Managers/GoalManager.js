@@ -394,19 +394,40 @@ export default class GoalManager {
             // helper to persist selected level and navigate
             const persistAndNavigate = () => {
                 let levelParam = this.levelManager?.currentLevelKey ?? '';
+                let levelNumber = null;
                 try {
                     const levels = this.levelManager?.assetManager?.get('Levels') || {};
                     const keys = Object.keys(levels || {});
                     const idx = keys.indexOf(this.levelManager?.currentLevelKey);
-                    if (idx !== -1) levelParam = idx + 1; // 1-based index used by levelSelect
+                    if (idx !== -1) levelNumber = idx + 1; // 1-based index used by levelSelect
+                    if (levelNumber == null && typeof this.levelManager?.currentLevelKey === 'string') {
+                        // attempt to parse trailing digits from key like 'level12'
+                        const m = String(this.levelManager.currentLevelKey).match(/(\d+)$/);
+                        if (m) levelNumber = parseInt(m[1], 10);
+                    }
                 } catch (e) {}
+
+                // persist selected level as before
                 try {
                     let storeVal = null;
-                    if (typeof levelParam === 'number') storeVal = 'level' + levelParam;
+                    if (typeof levelNumber === 'number') storeVal = 'level' + levelNumber;
                     else if (typeof levelParam === 'string' && levelParam.length > 0) storeVal = levelParam;
                     else storeVal = this.levelManager?.currentLevelKey || 'level1';
                     localStorage.setItem('pf_selectedLevel', storeVal);
                 } catch (e) {}
+
+                // persist completed levels list (array of 1-based numbers)
+                try {
+                    if (typeof levelNumber === 'number') {
+                        const key = 'pf_completedLevels';
+                        let arr = [];
+                        try { arr = JSON.parse(localStorage.getItem(key) || '[]') || []; } catch (e) { arr = []; }
+                        if (!Array.isArray(arr)) arr = [];
+                        if (!arr.includes(levelNumber)) arr.push(levelNumber);
+                        localStorage.setItem(key, JSON.stringify(arr));
+                    }
+                } catch (e) {}
+
                 window.location.href = 'win.html';
             };
 

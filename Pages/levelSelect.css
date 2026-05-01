@@ -1,0 +1,131 @@
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* prevent scrollbars from appearing when canvas is larger than viewport */
+    background-image: url(../Assets/tilemaps/bg/idle.png);
+    background-size: 11.11vh 11.11vh;
+    image-rendering: pixelated;
+}
+canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    /* keep pointer events so canvas still receives input where it is visible */
+    pointer-events: auto;
+    image-rendering: pixelated;
+    user-select: none; /* prevent text selection on drag */
+    display: block;
+}
+h1 {
+    position: fixed;
+    top: 0%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 5em;
+    z-index: 2;
+
+    background:linear-gradient(to bottom, #38e1de, #4f71fb);
+    background-clip: text; 
+    -webkit-background-clip: text; 
+    -webkit-text-fill-color: transparent;
+}
+table {
+    position: fixed;
+    top: 60%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-collapse: collapse;
+    z-index: 2;
+}
+
+/* Back button styled like other UI */
+#backBtn {
+    position: fixed;
+    top: 5%;
+    left: 5%;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 2.2em;
+    color: #FFFFFF;
+    padding: 8px 14px;
+    border: 5px solid #888888FF;
+    border-radius: 5px;
+    background-color: #444444FF;
+    z-index: 3;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.15s;
+}
+#darken {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(circle at 50% 50%,#11001177, #110011CC); /* semi-transparent black */
+    z-index: 1;
+}
+#backBtn:hover { background-color: #999999FF; transform: scale(1.03) rotate(-0.5deg); }
+#backBtn:active { background-color: #225522FF; transform: scale(0.98) rotate(0.5deg); }
+
+/* Level buttons: large, consistent with title UI */
+#levels td {
+    padding: 6px;
+}
+#levels button {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 2em;
+    width: 5.25em;
+    height: 2em;
+    text-align: center;
+    color: #FFFFFF;
+    padding: 6px 12px;
+    border: 5px solid #888888FF;
+    border-radius: 6px;
+    background-color: #444444FF;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.12s;
+}
+#levels button:hover { background-color: #999999FF; transform: scale(1.05) rotate(1deg); }
+#levels button:active { background-color: #222255FF; transform: scale(0.96) rotate(-1deg); }
+
+/* Completed level visual style */
+#levels button.completed {
+    background-color: #2e8b57; /* sea green */
+    border-color: #267148;
+    color: #FFFFFF;
+}
+#levels button.completed:hover {
+    background-color: #34a354;
+}
+
+/* Missing levels: darken, not clickable, no hover effects */
+#levels button.missing,
+#levels button[disabled] {
+    background-color: #2b2b2b !important;
+    border-color: #1f1f1f !important;
+    color: #666666 !important;
+    opacity: 0.85;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+#levels button.missing:hover,
+#levels button[disabled]:hover {
+    transform: none !important;
+}
+
+/* global grabbing state */
+.is-grabbing, .is-grabbing * {
+    cursor: grabbing !important;
+}
+#levels button.completed:active {
+    background-color: #114820;
+}
+
+/* Ensure table stays readable on small screens */
+@media (max-width: 600px) {
+    #levels button { font-size: 1.2em; width: 3.4em; height: 2.2em; }
+    h1 { font-size: 3em; }
+}

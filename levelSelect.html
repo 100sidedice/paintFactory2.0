@@ -3,8 +3,11 @@
 <head>
     <meta charset="utf-8">
     <title>Paint Factory — Level Select</title>
+    <link rel="stylesheet" href="Pages/levelSelect.css">
 </head>
 <body>
+    <canvas id="Draw" width="800" height="600"></canvas>
+    <div id="darken"></div>
     <h1>Level Select</h1>
     <button id="backBtn">Back</button>
 
@@ -19,12 +22,38 @@
 
         const tbody = document.querySelector('#levels tbody');
         let level = 1;
+        // load completed levels from localStorage (array of 1-based numbers)
+        let completedLevels = [];
+        try { completedLevels = JSON.parse(localStorage.getItem('pf_completedLevels') || '[]') || []; } catch (e) { completedLevels = []; }
         for (let r = 0; r < 7; r++) {
             const tr = document.createElement('tr');
             for (let c = 0; c < 5; c++) {
                 const td = document.createElement('td');
                 const btn = document.createElement('button');
+                btn.addEventListener('click', (function (n) {
+                return function () {
+                    try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
+                    window.location.href = 'game.html';
+                };
+                })(level));
                 btn.textContent = level;
+                // mark completed levels
+                try { if (Array.isArray(completedLevels) && completedLevels.includes(level)) btn.classList.add('completed'); } catch (e) {}
+                // check whether a level file exists; if not, mark as missing and disable
+                (function(b, n){
+                    const url = `Data/Levels/Level${n}.json`;
+                    fetch(url, { method: 'GET', cache: 'no-store' }).then(r => {
+                        if (!r.ok) {
+                            b.classList.add('missing');
+                            b.disabled = true;
+                            b.setAttribute('aria-disabled', 'true');
+                        }
+                    }).catch(() => {
+                        b.classList.add('missing');
+                        b.disabled = true;
+                        b.setAttribute('aria-disabled', 'true');
+                    });
+                })(btn, level);
                 btn.addEventListener('click', (function (n) {
                 return function () {
                     try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
@@ -38,5 +67,6 @@
             tbody.appendChild(tr);
         }
     </script>
+    <script src="Pages/levelSelect.js" type="module"></script>
 </body>
 </html>
