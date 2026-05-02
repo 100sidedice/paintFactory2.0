@@ -29,12 +29,12 @@ export default class GoalManager {
         this._speedBoostListeners = [];
 
         // Hook into SidebarManager updates so machine counts refresh when sidebar changes
-        const sb = this.levelManager?.sidebarManager;
+        const sb = this.levelManager.sidebarManager;
         if (sb) {
             const origRefresh = sb._refreshAllSlots?.bind(sb);
-            if (origRefresh) sb._refreshAllSlots = (...a) => { origRefresh(...a); try { this._refreshAllGoals(); } catch (e) {} };
+            if (origRefresh) sb._refreshAllSlots = (...a) => { origRefresh(...a); this._refreshAllGoals(); };
             const origUpdate = sb._updateSlotCountDisplay?.bind(sb);
-            if (origUpdate) sb._updateSlotCountDisplay = (...a) => { origUpdate(...a); try { this._refreshAllGoals(); } catch (e) {} };
+            if (origUpdate) sb._updateSlotCountDisplay = (...a) => { origUpdate(...a); this._refreshAllGoals(); };
         }
     }
 
@@ -78,11 +78,7 @@ export default class GoalManager {
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
             } else if (String(k).startsWith('#')) {
-                let colorInt = null;
-                try { colorInt = intHex(k); } catch (e) {
-                    const n = parseInt(k, 10);
-                    colorInt = Number.isNaN(n) ? null : n;
-                }
+                let colorInt = intHex(k);
                 const css = stringHex(colorInt);
                 const entry = this._createEntry({ kind: 'color', key: k, colorInt, colorCss: css, need });
                 this.container.appendChild(entry.el);
@@ -131,7 +127,7 @@ export default class GoalManager {
             const img = this.assetManager.get('machines-image');
             // store type on canvas for animation frame updates
             sw.dataset.machineType = String(type);
-            const data = this.levelManager?.dataManager?.getData(joinDots('machineData', type)) ?? {};
+            const data = this.levelManager.dataManager.getData(joinDots('machineData', type)) ?? {};
             if (img && data && data.texture) {
                 // draw first frame immediately; animation loop will update later
                 this._drawMachineFrame(sw, type, performance.now());
@@ -183,7 +179,7 @@ export default class GoalManager {
         ctx.clearRect(0,0,sw.width,sw.height);
         const img = this.assetManager.get('machines-image');
         if (!img) return;
-        const data = this.levelManager?.dataManager?.getData(joinDots('machineData', type)) ?? {};
+        const data = this.levelManager.dataManager.getData(joinDots('machineData', type)) ?? {};
         const row = (data.texture && data.texture.row) ?? 0;
         const tw = 16; const th = 16;
         const cols = Math.max(1, Math.floor(img.width / tw));
@@ -201,11 +197,6 @@ export default class GoalManager {
         const ctx = sw.getContext('2d');
         ctx.clearRect(0,0,sw.width,sw.height);
         const img = this.assetManager.get('hourglass');
-        if (!img) {
-            ctx.fillStyle = '#333333';
-            ctx.fillRect(0,0,sw.width,sw.height);
-            return;
-        }
         const rows = 2;
         const th = Math.max(1, Math.floor(img.height / rows));
         const tw = th; // assume square frames
@@ -276,8 +267,7 @@ export default class GoalManager {
         const unmetMachineGoals = machineGoals.filter(g => (g.have || 0) < (g.need || 0));
         if (unmetMachineGoals.length > 0) return;
         if (color === null || color === undefined) return;
-        let colInt = null;
-        try { colInt = intHex(color); } catch (e) { colInt = Number(color); }
+        let colInt = intHex(color);
         if (colInt === null || colInt === undefined) return;
         // find matching goal (compare integer values)
         for (const g of this.goals) {
@@ -341,30 +331,21 @@ export default class GoalManager {
             }, this._collisionExpireMs);
             g._cellTimers[cellKey] = { timeoutId, lastSeen: Date.now() };
             // mark machine goal as recently active for speed-boost considerations
-            try { this._markGoalRecent(g.key); } catch (e) {}
+            this._markGoalRecent(g.key);
         }
     }
 
     _markGoalRecent(key) {
         if (!key) return;
-        // clear existing timeout for this key
-        try {
-            const prev = this._recentGoalTimeouts?.[key];
-            if (prev) clearTimeout(prev);
-        } catch (e) {}
-        // mark as recent
+        const prev = this._recentGoalTimeouts?.[key];
+        if (prev) clearTimeout(prev);
         this._recentGoals.add(String(key));
-        // set timeout to clear recent flag after window
-        try {
-            this._recentGoalTimeouts[String(key)] = setTimeout(() => {
-                try { this._recentGoals.delete(String(key)); } catch (e) {}
-                try { delete this._recentGoalTimeouts[String(key)]; } catch (e) {}
-                // re-evaluate whether to keep speed boost
-                try { this._checkAllRecentGoals(); } catch (e) {}
-            }, this._speedBoostDurationMs);
-        } catch (e) {}
-        // check whether all non-time goals are recent now
-        try { this._checkAllRecentGoals(); } catch (e) {}
+        this._recentGoalTimeouts[String(key)] = setTimeout(() => {
+            this._recentGoals.delete(String(key));
+            delete this._recentGoalTimeouts[String(key)];
+            this._checkAllRecentGoals();
+        }, this._speedBoostDurationMs);
+        this._checkAllRecentGoals();
     }
 
     _checkAllRecentGoals() {
@@ -420,35 +401,21 @@ export default class GoalManager {
         if (this._timeExpired) return;
         this._timeExpired = true;
         // show a simple overlay informing player time is up
-        try {
-            const overlay = document.createElement('div');
-            overlay.id = 'time-up-overlay';
-            overlay.style.position = 'fixed';
-            overlay.style.left = '0';
-            overlay.style.top = '0';
-            overlay.style.width = '100%';
-            overlay.style.height = '100%';
-            overlay.style.display = 'flex';
-            overlay.style.alignItems = 'center';
-            overlay.style.justifyContent = 'center';
-            overlay.style.background = 'rgba(0,0,0,0.8)';
-            overlay.style.zIndex = '2000';
-            const inner = document.createElement('div');
-            inner.style.color = '#FFFFFF';
-            inner.style.fontSize = '36px';
-            inner.style.textAlign = 'center';
-            inner.textContent = "Time's up!";
-            overlay.appendChild(inner);
-            document.body.appendChild(overlay);
-        } catch (e) {}
+        const overlay = document.createElement('div');
+        overlay.id = 'time-up-overlay';
+        overlay.className = 'goal-overlay time-up';
+        const inner = document.createElement('p');
+        inner.className = 'goal-message';
+        inner.textContent = "Time's up!";
+        overlay.appendChild(inner);
+        document.body.appendChild(overlay);
     }
 
     _onAllGoalsMet() {
         if (this._winTriggered) return;
         this._winTriggered = true;
         // confetti for a few seconds, then fade to black and navigate to win.html
-        const lm = this.levelManager;
-        const pm = lm?.particleManager || null;
+        const pm = this.levelManager.particleManager;
         const canvas = document.getElementById('Draw');
         const cw = canvas ? canvas.width : (window.innerWidth || 800);
         const ch = canvas ? canvas.height : (window.innerHeight || 600);
@@ -471,54 +438,39 @@ export default class GoalManager {
         // stop spawning after duration, then fade
         setTimeout(() => {
             clearInterval(iid);
-            // create fade overlay
+            // create fade overlay (use shared goal-overlay styles)
             const overlay = document.createElement('div');
             overlay.id = 'goal-win-fade';
-            overlay.style.position = 'fixed';
-            overlay.style.left = '0';
-            overlay.style.top = '0';
-            overlay.style.width = '100%';
-            overlay.style.height = '100%';
-            overlay.style.background = '#000';
-            overlay.style.opacity = '0';
-            overlay.style.transition = 'opacity 800ms ease-in-out';
-            overlay.style.zIndex = '2000';
+            overlay.className = 'goal-overlay win-fade';
             // helper to persist selected level and navigate
             const persistAndNavigate = () => {
-                let levelParam = this.levelManager?.currentLevelKey ?? '';
+                let levelParam = this.levelManager.currentLevelKey ?? '';
                 let levelNumber = null;
-                try {
-                    const levels = this.levelManager?.assetManager?.get('Levels') || {};
-                    const keys = Object.keys(levels || {});
-                    const idx = keys.indexOf(this.levelManager?.currentLevelKey);
-                    if (idx !== -1) levelNumber = idx + 1; // 1-based index used by levelSelect
-                    if (levelNumber == null && typeof this.levelManager?.currentLevelKey === 'string') {
-                        // attempt to parse trailing digits from key like 'level12'
-                        const m = String(this.levelManager.currentLevelKey).match(/(\d+)$/);
-                        if (m) levelNumber = parseInt(m[1], 10);
-                    }
-                } catch (e) {}
+                const levels = this.levelManager.assetManager.get('Levels') || {};
+                const keys = Object.keys(levels || {});
+                const idx = keys.indexOf(this.levelManager.currentLevelKey);
+                if (idx !== -1) levelNumber = idx + 1; // 1-based index used by levelSelect
+                if (levelNumber == null && typeof this.levelManager.currentLevelKey === 'string') {
+                    // attempt to parse trailing digits from key like 'level12'
+                    const m = String(this.levelManager.currentLevelKey).match(/(\d+)$/);
+                    if (m) levelNumber = parseInt(m[1], 10);
+                }
 
                 // persist selected level as before
-                try {
-                    let storeVal = null;
-                    if (typeof levelNumber === 'number') storeVal = 'level' + levelNumber;
-                    else if (typeof levelParam === 'string' && levelParam.length > 0) storeVal = levelParam;
-                    else storeVal = this.levelManager?.currentLevelKey || 'level1';
-                    localStorage.setItem('pf_selectedLevel', storeVal);
-                } catch (e) {}
+                let storeVal = null;
+                if (typeof levelNumber === 'number') storeVal = 'level' + levelNumber;
+                else if (typeof levelParam === 'string' && levelParam.length > 0) storeVal = levelParam;
+                else storeVal = this.levelManager.currentLevelKey || 'level1';
+                localStorage.setItem('pf_selectedLevel', storeVal);
 
                 // persist completed levels list (array of 1-based numbers)
-                try {
-                    if (typeof levelNumber === 'number') {
-                        const key = 'pf_completedLevels';
-                        let arr = [];
-                        try { arr = JSON.parse(localStorage.getItem(key) || '[]') || []; } catch (e) { arr = []; }
-                        if (!Array.isArray(arr)) arr = [];
-                        if (!arr.includes(levelNumber)) arr.push(levelNumber);
-                        localStorage.setItem(key, JSON.stringify(arr));
-                    }
-                } catch (e) {}
+                if (typeof levelNumber === 'number') {
+                    const key = 'pf_completedLevels';
+                    let arr = JSON.parse(localStorage.getItem(key) || '[]') || [];
+                    if (!Array.isArray(arr)) arr = [];
+                    if (!arr.includes(levelNumber)) arr.push(levelNumber);
+                    localStorage.setItem(key, JSON.stringify(arr));
+                }
 
                 window.location.href = 'win.html';
             };

@@ -15,7 +15,8 @@ export default class seller extends MachineBase {
         if (colliding) {
             // remove the item from the factory and inform level goal manager (if present)
             const color = (item && (item.color !== undefined && item.color !== null)) ? item.color : null;
-            this.manager.levelManager.goalManager.recordSale(color);
+            const gm = this.manager?.levelManager?.goalManager;
+            if (gm && typeof gm.recordSale === 'function') gm.recordSale(color);
             this.manager.removeItem(item);
         }
     }

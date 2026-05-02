@@ -1,6 +1,22 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
 import { stringHex, intHex } from "../Helpers/colorHelpers.js";
 import { getImageId, hexToRgba, getColorizedTile } from "../../Machines/spawner.js";
+
+// Constants to replace magic numbers and repeated strings
+const ROTATION_STEP = 90; // Degrees to rotate machines (90° increments)
+const ROTATION_CYCLE = 360; // Full rotation in degrees
+const TILE_SIZE = 16; // Size of each tile sprite in pixels
+const GRID_SIZE = 9; // fixed vertical grid size (rows)
+const DOUBLE_TAP_THRESHOLD = 350; // Milliseconds to detect double-tap
+const HOLD_SHAKE_DELAY = 500; // Milliseconds to hold before triggering paste mode
+const ROTATE_THROTTLE = 150; // Milliseconds between rotation inputs on icon wheel
+const ROTATE_RELEASE_THROTTLE = 200; // Milliseconds between rotation inputs on mouse wheel
+const DEFAULT_SPAWNER_COLOR = 0x1C1C1CFF; // Default dark gray color for spawner
+const SPAWNER_BASE = 'spawner'; // Machine type for spawners
+const DELETE_BASE = 'delete'; // Machine type for delete tool
+const DELETE_ROTATE = 'delete-rotate'; // Machine type for rotate-selected action
+const DELETE_SELECT = 'delete-select'; // Machine type for select/drag action
+
 export default class SidebarManager {
     constructor(assetManager, input, factoryManager, dataManager, particleManager) {
         console.log('SidebarManager constructor');
@@ -15,11 +31,11 @@ export default class SidebarManager {
         this.selectedIndex = 0;
         this.lastRotate = performance.now();
         this.lastRotateDir = 1;
-        this.lastRotateTarget = null; // 'slot' | 'machine' | 'selection'
         this._lastTap = { time: 0, x: -1, y: -1 };
         this._iconAnimReq = null;
         this._pasteModeSlot = null;
-        this.spawnerColor = 0x1C1C1CFF;
+        this._selectDragStart = null;
+        this.spawnerColor = DEFAULT_SPAWNER_COLOR;
         this.spawnerPanelOpen = false;
         this.spawnerPanel = null;
         this.spawnerPanelToggle = null;
@@ -41,7 +57,7 @@ export default class SidebarManager {
     _syncSpawnerPanelVisibility() {
         if (this.spawnerPanelToggle) {
             this.spawnerPanelToggle.textContent = this.spawnerPanelOpen ? '◀' : '▶';
-            this.spawnerPanelToggle.setAttribute('aria-expanded', this.spawnerPanelOpen ? 'true' : 'false');
+            this.spawnerPanelToggle.setAttribute('aria-expanded', String(this.spawnerPanelOpen));
         }
         if (this.spawnerPanel) {
             this.spawnerPanel.classList.toggle('open', this.spawnerPanelOpen);
@@ -103,10 +119,8 @@ export default class SidebarManager {
         if (this._pasteModeSlot) {
             this._setPasteMode(this._pasteModeSlot, false);
         }
-        if (this.factoryManager) {
-            this.factoryManager.pasting = false;
-            this.factoryManager.pasteTarget = null;
-        }
+        this.factoryManager.pasting = false;
+        this.factoryManager.pasteTarget = null;
     }
 
     _ensureSpawnerPanel() {
@@ -150,24 +164,22 @@ export default class SidebarManager {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        canvas.width = 16;
-        canvas.height = 16;
+        
+        canvas.width = TILE_SIZE;
+        canvas.height = TILE_SIZE;
         canvas.imageSmoothingEnabled = false;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const img = this.assetManager.get('machines-image');
-        if (!img || !this.dataManager) return;
+        if (!img?.width) return;
 
-        const data = this.dataManager.getData(joinDots('machineData', 'spawner')) ?? {};
-        const row = (data.texture && data.texture.row) ?? 0;
-        const tw = 16;
-        const th = 16;
-        const cols = Math.max(1, Math.floor(img.width / tw));
+        const data = this.dataManager.getData(joinDots('machineData', SPAWNER_BASE)) ?? {};
+        const row = data.texture?.row ?? 0;
+        const cols = Math.max(1, Math.floor(img.width / TILE_SIZE));
         const tileIndex = row * cols;
-        const sx = 0;
-        const sy = Math.floor(tileIndex / cols) * th;
-        const tile = getColorizedTile(img, sx, sy, tw, th, color, 0x1C1C1CFF);
-        ctx.drawImage(tile, 0, 0, canvas.width, canvas.height);
+        const sy = Math.floor(tileIndex / cols) * TILE_SIZE;
+        const tile = getColorizedTile(img, 0, sy, TILE_SIZE, TILE_SIZE, color, DEFAULT_SPAWNER_COLOR);
+        ctx.drawImage(tile, 0, 0, TILE_SIZE, TILE_SIZE);
     }
 
     _renderSpawnerPanel() {
@@ -250,7 +262,7 @@ export default class SidebarManager {
                 if (tt.split('-')[0] === base) variants.push(tt);
             }
             // If this is delete, add rotate and select as special action variants
-            if (base === 'delete') {
+            if (base === DELETE_BASE) {
                 variants.push('delete-rotate', 'delete-select');
             }
             seenBases.add(base);
@@ -283,7 +295,7 @@ export default class SidebarManager {
         slot.dataset.animRot = '0';
         icon.style.setProperty('--rot-anim', '0deg');
 
-        const pasteLabel = document.createElement('div');
+        const pasteLabel = document.createElement('p');
         pasteLabel.className = 'paste-status';
         pasteLabel.textContent = 'Pasting';
         slot.appendChild(pasteLabel);
@@ -300,29 +312,25 @@ export default class SidebarManager {
         };
 
         slot.addEventListener('pointerdown', (e) => {
-            if (slot.dataset.machineType !== 'delete-select') return;
+            if (slot.dataset.machineType !== DELETE_SELECT) return;
             if (e.button !== undefined && e.button !== 0) return;
             holdActivated = false;
             stopHoldShake();
             holdShakeTimer = window.setTimeout(() => {
-                if (slot.dataset.machineType !== 'delete-select') return;
-                if (!this.factoryManager || !this.factoryManager.clipboard || !Array.isArray(this.factoryManager.clipboard.machines) || this.factoryManager.clipboard.machines.length === 0) return;
+                if (slot.dataset.machineType !== DELETE_SELECT) return;
+                if (!this.factoryManager?.clipboard?.machines?.length) return;
                 holdActivated = true;
                 slot.classList.add('hold-shake');
                 holdShakeTimer = null;
                 slot.classList.remove('hold-shake');
                 this._setPasteMode(slot, true);
-                if (this.factoryManager) {
-                    this.factoryManager.pasting = true;
-                    this.factoryManager.pasteTarget = null;
-                }
-                if (this.particleManager) {
-                    const rect = slot.getBoundingClientRect();
-                    const cx = rect.left + rect.width / 2;
-                    const cy = rect.top + rect.height / 2;
-                    this.particleManager.spawnAt(cx, cy, { count: 16, colors: [0xFFFFFFFF, 0x00FFFFFF, 0xA0A0FFFF], size: 4, speed: 220, life: 500 });
-                }
-            }, 500);
+                this.factoryManager.pasting = true;
+                this.factoryManager.pasteTarget = null;
+                const rect = slot.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                this.particleManager.spawnAt(cx, cy, { count: 16, colors: [0xFFFFFFFF, 0x00FFFFFF, 0xA0A0FFFF], size: 4, speed: 220, life: 500 });
+            }, HOLD_SHAKE_DELAY);
             window.addEventListener('pointerup', stopHoldShake, { once: true });
             window.addEventListener('pointercancel', stopHoldShake, { once: true });
             window.addEventListener('pointerleave', stopHoldShake, { once: true });
@@ -342,16 +350,16 @@ export default class SidebarManager {
             slot.appendChild(indicator);
         }
 
-        if (variants.indexOf('spawner') !== -1) {
+        if (variants.indexOf(SPAWNER_BASE) !== -1) {
             slot.classList.add('spawner-slot');
         }
 
-        const countEl = document.createElement('div');
+        const countEl = document.createElement('p');
         countEl.className = 'machine-count';
         slot.appendChild(countEl);
 
         if (slot.classList.contains('spawner-slot')) {
-            const selectedCountEl = document.createElement('div');
+            const selectedCountEl = document.createElement('p');
             selectedCountEl.className = 'spawner-selected-count';
             slot.appendChild(selectedCountEl);
         }
@@ -359,19 +367,18 @@ export default class SidebarManager {
         this._updateSlotCountDisplay(slot);
 
         icon.addEventListener('wheel', (e) => {
-            if (performance.now() - this.lastRotate < 150) return;
+            if (performance.now() - this.lastRotate < ROTATE_THROTTLE) return;
             e.preventDefault();
             const deltaY = e.deltaY;
-            const delta = deltaY > 0 ? 90 : -90;
+            const delta = deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP;
             this.lastRotate = performance.now();
             this.lastRotateDir = (delta > 0) ? 1 : -1;
-            this.lastRotateTarget = 'slot';
             let anim = parseInt(slot.dataset.animRot ?? '0', 10) || 0;
             anim = anim + delta;
             slot.dataset.animRot = String(anim);
             icon.style.setProperty('--rot-anim', `${anim}deg`);
             const cur = parseInt(slot.dataset.rot ?? '0', 10) || 0;
-            const next = (cur + delta + 360) % 360;
+            const next = (cur + delta + ROTATION_CYCLE) % ROTATION_CYCLE;
             slot.dataset.rot = String(next);
         }, { passive: false });
 
@@ -379,7 +386,7 @@ export default class SidebarManager {
             if (ev.propertyName !== 'transform') return;
             const logical = parseInt(slot.dataset.rot ?? '0', 10) || 0;
             let anim = parseInt(slot.dataset.animRot ?? '0', 10) || 0;
-            if (((anim % 360) + 360) % 360 !== logical) return;
+            if (((anim % ROTATION_CYCLE) + ROTATION_CYCLE) % ROTATION_CYCLE !== logical) return;
             slot.dataset.animRot = String(logical);
             icon.style.transition = 'none';
             icon.style.setProperty('--rot-anim', `${logical}deg`);
@@ -392,21 +399,19 @@ export default class SidebarManager {
         const index = this.slots.length;
         slot.addEventListener('click', () => {
             if (slot.dataset.pasteArmed === '1') {
-                if (this.factoryManager && this.factoryManager.pasting) {
-                    this.factoryManager.rotateClipboard(true);
-                }
+                if (this.factoryManager.pasting) this.factoryManager.rotateClipboard(true);
                 return;
             }
             // Special handling for rotate: if rotate is selected and we click on another slot, rotate it
             if (this.selectedIndex >= 0 && this.selectedIndex < this.slots.length) {
                 const currentSlot = this.slots[this.selectedIndex];
                 const currentType = currentSlot.dataset.machineType;
-                if (currentType === 'delete-rotate') {
+                if (currentType === DELETE_ROTATE) {
                     // Rotate the clicked slot (same effect as scrolling on it) - rotate by 90 degrees
                     const clickedSlot = this.slots[index];
                     if (clickedSlot && index !== this.selectedIndex) {
-                        // Rotate clockwise (90 degrees)
-                        const delta = 90;
+                        // Rotate clockwise by ROTATION_STEP degrees
+                        const delta = ROTATION_STEP;
                         let anim = parseInt(clickedSlot.dataset.animRot ?? '0', 10) || 0;
                         anim = anim + delta;
                         clickedSlot.dataset.animRot = String(anim);
@@ -415,7 +420,7 @@ export default class SidebarManager {
                             slotIcon.style.setProperty('--rot-anim', `${anim}deg`);
                         }
                         const cur = parseInt(clickedSlot.dataset.rot ?? '0', 10) || 0;
-                        const next = (cur + delta + 360) % 360;
+                        const next = (cur + delta + ROTATION_CYCLE) % ROTATION_CYCLE;
                         clickedSlot.dataset.rot = String(next);
                         return;
                     } else if (index === this.selectedIndex) {
@@ -438,87 +443,47 @@ export default class SidebarManager {
         this.slots.push(slot);
     }
 
-    _drawIcon(icon, type) {
-        console.log(`hello`);
-        const ctx = icon.getContext('2d');
-        ctx.clearRect(0, 0, icon.width, icon.height);
-        if (type === 'delete') {
-            const deleteImg = this.assetManager.get('delete');
-            if (deleteImg) ctx.drawImage(deleteImg, 0, 0, icon.width, icon.height);
-            return;
-        }
-        if (type === 'delete-rotate') {
-            const rotateImg = this.assetManager.get('rotate');
-            if (rotateImg) ctx.drawImage(rotateImg, 0, 0, icon.width, icon.height);
-            return;
-        }
-        if (type === 'delete-select') {
-            const selectImg = this.assetManager.get('select');
-            if (selectImg) ctx.drawImage(selectImg, 0, 0, icon.width, icon.height);
-            return;
-        }
-        const img = this.assetManager.get('machines-image');
-        if (!img) return;
-        if (!img || !this.dataManager) return;
-        const data = this.dataManager.getData(joinDots('machineData', type)) ?? {};
-        const row = (data.texture && data.texture.row) ?? 0;
-        const tw = 16; const th = 16;
-        const cols = Math.max(1, Math.floor(img.width / tw));
-        const tileIndex = row * cols;
-        const sx = 0;
-        const sy = Math.floor(tileIndex / cols) * th;
-        console.log('drawing spawner icon with color');
-        if(type === 'spawner'){
-            const maskColor = 0x1C1C1CFF;
-            const color = this.spawnerColor;
-            const tile = getColorizedTile(img, sx, sy, tw, th, color, maskColor);
-            console.log('drawing spawner icon with color', stringHex(color));
-            ctx.drawImage(tile, 0, 0, icon.width, icon.height);
-            return;
-        }
-        ctx.drawImage(img, sx, sy, tw, th, 0, 0, icon.width, icon.height);
+    _isSpawnerType(type) {
+        return type?.split('-')[0] === SPAWNER_BASE;
     }
 
-    _drawIconFrame(icon, type, nowMs) {
+    _drawIcon(icon, type, nowMs = null) {
+        if (!icon) return;
         const ctx = icon.getContext('2d');
         ctx.clearRect(0, 0, icon.width, icon.height);
-        if (type === 'delete') {
-            const deleteImg = this.assetManager.get('delete');
-            if (deleteImg) ctx.drawImage(deleteImg, 0, 0, icon.width, icon.height);
+
+        // Handle special delete action variants
+        const specialAssets = { [DELETE_ROTATE]: 'rotate', [DELETE_SELECT]: 'select', delete: 'delete' };
+        if (type in specialAssets) {
+            const img = this.assetManager.get(specialAssets[type]);
+            if (img) ctx.drawImage(img, 0, 0, icon.width, icon.height);
             return;
         }
-        if (type === 'delete-rotate') {
-            const rotateImg = this.assetManager.get('rotate');
-            if (rotateImg) ctx.drawImage(rotateImg, 0, 0, icon.width, icon.height);
-            return;
-        }
-        if (type === 'delete-select') {
-            const selectImg = this.assetManager.get('select');
-            if (selectImg) ctx.drawImage(selectImg, 0, 0, icon.width, icon.height);
-            return;
-        }
+
         const img = this.assetManager.get('machines-image');
-        
+        if (!img?.width) return;
+
         const data = this.dataManager.getData(joinDots('machineData', type)) ?? {};
-        const row = data.texture.row;
-        const tw = 16; 
-        const th = 16;
-        const cols = Math.max(1, Math.floor(img.width / tw));
+        const row = data.texture?.row ?? 0;
+        const cols = Math.max(1, Math.floor(img.width / TILE_SIZE));
         const tileIndex = row * cols;
-        let fps = data.texture.fps;
-        const remaining = this._getRemainingCount(type);
-        if (remaining <= 0) fps = fps * 0.7;
-        const frame = Math.floor((nowMs * fps) / 1000) % cols;
-        const sx = frame * tw;
-        const sy = Math.floor(tileIndex / cols) * th;
-        if(type === 'spawner'){
-            const maskColor = 0x1C1C1CFF;
-            const color = this.spawnerColor;
-            const tile = getColorizedTile(img, sx, sy, tw, th, color, maskColor);
-            ctx.drawImage(tile, 0, 0, icon.width, icon.height);
-            return;
+        const sy = Math.floor(tileIndex / cols) * TILE_SIZE;
+        let sx = 0;
+
+        // Calculate animation frame if timestamp provided
+        if (nowMs !== null) {
+            const fps = data.texture?.fps ?? 1;
+            const remaining = this._getRemainingCount(type);
+            const adjustedFps = remaining <= 0 ? fps * 0.7 : fps;
+            sx = Math.floor((nowMs * adjustedFps) / 1000) % cols * TILE_SIZE;
         }
-        ctx.drawImage(img, sx, sy, tw, th, 0, 0, icon.width, icon.height);
+
+        if (this._isSpawnerType(type)) {
+            const tile = getColorizedTile(img, sx, sy, TILE_SIZE, TILE_SIZE, this.spawnerColor, DEFAULT_SPAWNER_COLOR);
+            ctx.drawImage(tile, 0, 0, icon.width, icon.height);
+        } else {
+            ctx.drawImage(img, sx, sy, TILE_SIZE, TILE_SIZE, 0, 0, icon.width, icon.height);
+        }
     }
 
     _getSlotRemaining(slot) {
@@ -534,7 +499,7 @@ export default class SidebarManager {
     _getRemainingCount(type) {
         if (!type) return 0;
         // Special delete variants (rotate, select) don't have limits
-        if (type === 'delete-rotate' || type === 'delete-select') return 1;
+        if (type === DELETE_ROTATE || type === DELETE_SELECT) return 1;
         const allowed = this.initialCounts[type] ?? 0;
         const placed = this._countPlacedOfType(type);
         return (allowed - placed);
@@ -551,12 +516,10 @@ export default class SidebarManager {
             for (let y = 0; y < col.length; y++) {
                 const m = col[y];
                 if (!m) continue;
-                const name = m.name ?? (m.data && m.data.type) ?? null;
+                const name = m.name ?? m.data?.type ?? null;
                 if (!name) continue;
                 if (name !== 'spawner') continue;
-                let mc = null;
-                if (m.data && m.data.color !== undefined && m.data.color !== null) mc = m.data.color;
-                else if (m.color !== undefined && m.color !== null) mc = m.color;
+                let mc = m.data?.color ?? m.color ?? null;
                 if (mc === null || mc === undefined) continue;
                 let mcInt = intHex(mc);
                 if (mcInt === null || mcInt === undefined) continue;
@@ -629,7 +592,7 @@ export default class SidebarManager {
             for (let y = 0; y < col.length; y++) {
                 const m = col[y];
                 if (!m) continue;
-                const name = m.name ?? (m.data && m.data.type) ?? null;
+                const name = m.name ?? m.data?.type ?? null;
                 if (!name) continue;
                 if (name === type) cnt++;
             }
@@ -652,11 +615,11 @@ export default class SidebarManager {
                 countEl.textContent = '(:';
                 countEl.style.display = '';
                 countEl.style.color = (count <= 0) ? 'red' : 'white';
-            } else if (type === 'delete-rotate') {
+            } else if (type === DELETE_ROTATE) {
                 countEl.textContent = 'O:';
                 countEl.style.display = '';
                 countEl.style.color = 'white';
-            } else if (type === 'delete-select') {
+            } else if (type === DELETE_SELECT) {
                 countEl.textContent = '/:';
                 countEl.style.display = '';
                 countEl.style.color = 'white';
@@ -671,7 +634,7 @@ export default class SidebarManager {
             selectedCountEl.style.color = (selectedColorCount <= 0) ? 'red' : 'white';
         }
         const type = slot.dataset.machineType;
-        const isSpecialAction = (type === 'delete-rotate' || type === 'delete-select');
+        const isSpecialAction = (type === DELETE_ROTATE || type === DELETE_SELECT);
         if (icon) {
             if (!isSpecialAction && (count <= 0 || (selectedColorCount !== null && selectedColorCount <= 0))) {
                 icon.style.filter = 'grayscale(100%)';
@@ -723,8 +686,8 @@ export default class SidebarManager {
                 const icon = slot.querySelector('canvas.machine-icon');
                 if (!icon) continue;
                 const type = slot.dataset.machineType;
-                const drawType = (type === 'delete-select' && slot.dataset.pasteArmed === '1') ? 'delete-rotate' : type;
-                this._drawIconFrame(icon, drawType, ts);
+                const drawType = (type === DELETE_SELECT && slot.dataset.pasteArmed === '1') ? DELETE_ROTATE : type;
+                this._drawIcon(icon, drawType, ts);
                 this._updateSlotCountDisplay(slot);
                 const indicator = slot.querySelector('.variant-indicator');
                 if (indicator) {
@@ -784,10 +747,9 @@ export default class SidebarManager {
     }
 
     _handleDoubleTap(gridX, gridY) {
-        if (!this.factoryManager) return;
         const machine = this.factoryManager.getMachine(gridX, gridY);
         if (!machine) return;
-        const type = machine.name ?? (machine.data && machine.data.type) ?? null;
+        const type = machine.name ?? machine.data?.type ?? null;
         if (!type) return;
         const base = type.split('-')[0];
         for (let i = 0; i < this.slots.length; i++) {
@@ -801,17 +763,15 @@ export default class SidebarManager {
                 const newType = variants[nextIdx];
                 if (newType === type) continue;
                 if (this._getRemainingCount(newType) <= 0) continue;
-                const rot = parseInt((machine.data && machine.data.rot) ?? 0, 10) || 0;
+                const rot = parseInt(machine.data?.rot ?? 0, 10) || 0;
                 this.factoryManager.removeMachine(gridX, gridY);
                 this.factoryManager.addMachine(newType, gridX, gridY, rot);
                 this._updateSlotCountDisplay(slot);
                 for (let s = 0; s < this.slots.length; s++) this._updateSlotCountDisplay(this.slots[s]);
-                if (this.particleManager) {
-                    const size = window.innerHeight / 9;
-                    const cx = gridX * size + size / 2;
-                    const cy = gridY * size + size / 2;
-                    this.particleManager.spawnAt(cx, cy, { count: 8, colors: [0x00FFFFFF, 0xFFA500FF], size: 4, speed: 300, life: 500 });
-                }
+                const size = window.innerHeight / 9;
+                const cx = gridX * size + size / 2;
+                const cy = gridY * size + size / 2;
+                this.particleManager.spawnAt(cx, cy, { count: 8, colors: [0x00FFFFFF, 0xFFA500FF], size: 4, speed: 300, life: 500 });
                 const newVariantIndex = variants.indexOf(newType);
                 if (newVariantIndex !== -1) {
                     slot.dataset.variantIndex = String(newVariantIndex);
@@ -830,6 +790,22 @@ export default class SidebarManager {
         }
     }
 
+    _getGridCoordinates(screenPos) {
+        const size = this._getGridCellSize();
+        const gridX = Math.floor(screenPos.x / size);
+        const gridY = Math.floor(screenPos.y / size);
+        return { gridX, gridY };
+    }
+
+    _getGridCellSize() {
+        return window.innerHeight / GRID_SIZE;
+    }
+
+    _getGridCellCenter(gridX, gridY) {
+        const size = this._getGridCellSize();
+        return { x: (gridX + 0.5) * size, y: (gridY + 0.5) * size };
+    }
+
     setSelection(index) {
         if (index < 0 || index >= this.slots.length) return;
         if (this.selectedIndex === index) return;
@@ -843,6 +819,55 @@ export default class SidebarManager {
         if (remaining <= 0) el.style.setProperty('--border_color', '#FFA500FF');
         else el.style.setProperty('--border_color', '#00FF00FF');
         this.selectedIndex = index;
+    }
+
+    _pickMachineAtGridPosition(gridX, gridY) {
+        const grid = this.factoryManager.grid;
+        if (gridX < 0 || gridY < 0 || gridX >= grid.length || gridY >= grid[0].length) return false;
+        
+        const machine = grid[gridX][gridY];
+        if (!machine) return false;
+        
+        const type = machine.name;
+        const rot = machine.data?.rot ?? 0;
+        if (!type) return false;
+
+        for (let i = 0; i < this.slots.length; i++) {
+            const slot = this.slots[i];
+            const variants = JSON.parse(slot.dataset.variants ?? '[]');
+            const idx = variants.indexOf(type);
+            if (idx === -1) continue;
+
+            this.setSelection(i);
+            slot.dataset.variantIndex = String(idx);
+            slot.dataset.machineType = variants[idx];
+            slot.dataset.rot = String(rot);
+            slot.dataset.animRot = String(rot);
+            
+            const icon = slot.querySelector('canvas.machine-icon');
+            if (icon) {
+                this._drawIcon(icon, variants[idx]);
+                icon.style.setProperty('--rot-anim', `${rot}deg`);
+                icon.style.setProperty('--rot', `${rot}deg`);
+            }
+
+            const indicator = slot.querySelector('.variant-indicator');
+            if (indicator) {
+                const dots = Array.from(indicator.children);
+                dots.forEach((d, j) => d.classList.toggle('active', j === idx));
+            }
+
+            this._updateSlotCountDisplay(slot);
+            
+            if (this._isSpawnerType(type)) {
+                const chosen = machine.data?.color ?? machine.color;
+                if (chosen !== null && chosen !== undefined) {
+                    this._setSpawnerColor(chosen);
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     setupInputBindings() {
@@ -859,10 +884,8 @@ export default class SidebarManager {
             ["keyboard", "ShiftLeft", "held"],
             ["mouse", "left", "held"]
         ], () => {
-            if (!this.factoryManager) return;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             if (gridX < 0 || gridY < 0) return;
             this.factoryManager.select(gridX, gridY);
             this.input.block(3)
@@ -874,10 +897,8 @@ export default class SidebarManager {
             ["keyboard", "ShiftLeft", "held"],
             ["mouse", "right", "held"]
         ], () => {
-            if (!this.factoryManager) return;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             if (gridX < 0 || gridY < 0) return;
             this.factoryManager.select(gridX, gridY, "remove");
             this.input.block(3)
@@ -901,11 +922,9 @@ export default class SidebarManager {
 
         // While pasting: left = confirm, right = cancel. High priority to avoid other handlers.
         this.input.addBinding('mouse', 'left', 'press', () => {
-            if (!this.factoryManager) return;
             if (!this.factoryManager.pasting) return;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             const pending = this.factoryManager.pasteTarget;
             if (!pending || pending.x !== gridX || pending.y !== gridY) {
                 this.factoryManager.pasteTarget = { x: gridX, y: gridY };
@@ -915,7 +934,7 @@ export default class SidebarManager {
             // attempt paste on the second click to confirm the locked cell
             const res = this.factoryManager.pasteAt(gridX, gridY);
             this._clearPasteMode();
-            const selectSlot = this.slots.find((slot) => slot.dataset.machineType === 'delete-select');
+            const selectSlot = this.slots.find((slot) => slot.dataset.machineType === DELETE_SELECT);
             if (selectSlot) this._setPasteMode(selectSlot, false);
             // block until mouse release to prevent other place handlers
             this.input.block(3);
@@ -924,30 +943,25 @@ export default class SidebarManager {
         });
 
         this.input.addBinding('mouse', 'right', 'press', () => {
-            if (!this.factoryManager) return;
             if (!this.factoryManager.pasting) return;
             this._clearPasteMode();
-            const selectSlot = this.slots.find((slot) => slot.dataset.machineType === 'delete-select');
+            const selectSlot = this.slots.find((slot) => slot.dataset.machineType === DELETE_SELECT);
             if (selectSlot) this._setPasteMode(selectSlot, false);
             this.input.block(3);
         }, ["paste"], 10);
 
-        // Initialize drag tracking
-        this._selectDragStart = null;
-
+        // Initialize drag tracking - moved to constructor
         // Press handler for single-tap rotate and select drag start (higher priority)
         this.input.addBinding('mouse', 'left', 'press', () => {
-            if (!this.factoryManager) return;
             if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) return;
             const slot = this.slots[this.selectedIndex];
             const type = slot.dataset.machineType;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             if (!type) return;
 
             // Handle rotate
-            if (type === 'delete-rotate') {
+            if (type === DELETE_ROTATE) {
                 // Check if there are selected cells - rotate all selected cells
                 if (this.factoryManager.selectedCells && this.factoryManager.selectedCells.size > 0) {
                     console.log('Rotating', this.factoryManager.selectedCells.size, 'selected cells');
@@ -956,10 +970,10 @@ export default class SidebarManager {
                         const machine = this.factoryManager.getMachine(x, y);
                         if (machine) {
                             const currentRot = machine.data?.rot || 0;
-                            const newRot = (currentRot + 90) % 360;
+                            const newRot = (currentRot + ROTATION_STEP) % ROTATION_CYCLE;
                             this.factoryManager.setMachineProperty(x, y, 'rot', newRot);
                             if (typeof machine.rotate === 'function') {
-                                try { machine.rotate(90); } catch (e) { }
+                                try { machine.rotate(ROTATION_STEP); } catch (e) { }
                             }
                         }
                     }
@@ -968,10 +982,10 @@ export default class SidebarManager {
                     const machine = this.factoryManager.getMachine(gridX, gridY);
                     if (machine) {
                         const currentRot = machine.data?.rot || 0;
-                        const newRot = (currentRot + 90) % 360;
+                        const newRot = (currentRot + ROTATION_STEP) % ROTATION_CYCLE;
                         this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
                         if (typeof machine.rotate === 'function') {
-                            try { machine.rotate(90); } catch (e) { }
+                            try { machine.rotate(ROTATION_STEP); } catch (e) { }
                         }
                     }
                 }
@@ -980,7 +994,7 @@ export default class SidebarManager {
             }
 
             // Handle select drag start
-            if (type === 'delete-select') {
+            if (type === DELETE_SELECT) {
                 if (gridX < 0 || gridY < 0) return;
                 const cellKey = `${gridX},${gridY}`;
                 const isStartSelected = this.factoryManager.selectedCells && this.factoryManager.selectedCells.has(cellKey);
@@ -1002,43 +1016,39 @@ export default class SidebarManager {
 
         // Held binding for placement and delete (but not for rotate or select variants)
         this.input.addBinding('mouse', 'left', 'held', () => {
-            if (!this.factoryManager) return;
             // when shift select is active, do not place while holding left
             if (this.input.active.has('keyboard:ShiftLeft:press') || this.input.active.has('keyboard:ShiftRight:press')) return;
             if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) return;
             const slot = this.slots[this.selectedIndex];
             const type = slot.dataset.machineType;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             if (!type) return;
             
             // Skip rotate and select variants (they use different bindings)
-            if (type === 'delete-rotate' || type === 'delete-select') return;
+            if (type === DELETE_ROTATE || type === DELETE_SELECT) return;
             
             if (type === 'delete') {
                 const cellKey = `${gridX},${gridY}`;
-                if (this.factoryManager.selectedCells && this.factoryManager.selectedCells.has(cellKey)) {
+                if (this.factoryManager.selectedCells?.has(cellKey)) {
                     this.factoryManager.cutSelection(this.input.getPos());
                     this.factoryManager.clearSelection();
                     this._refreshAllSlots();
                     return;
                 }
                 if (this.factoryManager.removeMachine(gridX, gridY)) {
-                    const size = window.innerHeight / 9;
-                    const cx = (gridX + 1/2) * size;
-                    const cy = (gridY + 1/2) * size;
+                    const { x: cx, y: cy } = this._getGridCellCenter(gridX, gridY);
                     this.particleManager.spawnAt(cx, cy, { count: 10, colors: [0xFFC800FF, 0x494949FF], size: 10, speed: 300, life: 700 });
                     this._refreshAllSlots();
                 }
                 return;
             }
             if (this._getRemainingCount(type) <= 0) return;
-            if (type.split('-')[0] === 'spawner') {
+            if (this._isSpawnerType(type)) {
                 if (this._getSpawnerRemaining(this._getSelectedSpawnerColor()) <= 0) return;
             }
             const placed = this.factoryManager.addMachine(type, gridX, gridY, parseInt(slot.dataset.rot ?? '0', 10) || 0);
-            if (type.split('-')[0] === 'spawner') {
+            if (this._isSpawnerType(type)) {
                 placed.data = placed.data || {};
                 const n = intHex(this._getSelectedSpawnerColor());
                 placed.data.color = n;
@@ -1046,29 +1056,24 @@ export default class SidebarManager {
                 this._refreshAllSlots();
             }
             if (this._getRemainingCount(type) === 0) {
-                const size = window.innerHeight / 9;
-                const cx = (gridX + 1/2) * size;
-                const cy = (gridY + 1/2) * size;
+                const { x: cx, y: cy } = this._getGridCellCenter(gridX, gridY);
                 this.particleManager.spawnAt(cx, cy, { count: 20, colors: [0xFBFF00FF, 0xFF5144FF, 0xFFA600FF], size: 5, speed: 500, life: 900 });
             }
         }, ["world-edit"], 1);
 
         // Double-tap handler (lower priority than rotate/select)
         this.input.addBinding('mouse', 'left', 'press', () => {
-            if (!this.factoryManager) return;
             // Skip if rotate or select is active
             if (this.selectedIndex >= 0 && this.selectedIndex < this.slots.length) {
                 const slot = this.slots[this.selectedIndex];
                 const type = slot.dataset.machineType;
-                if (type === 'delete-rotate' || type === 'delete-select') return;
+                if (type === DELETE_ROTATE || type === DELETE_SELECT) return;
             }
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             if (gridX < 0 || gridY < 0) return;
             const now = performance.now();
-            const threshold = 350;
-            if (this._lastTap && (now - this._lastTap.time) <= threshold && this._lastTap.x === gridX && this._lastTap.y === gridY) {
+            if (this._lastTap && (now - this._lastTap.time) <= DOUBLE_TAP_THRESHOLD && this._lastTap.x === gridX && this._lastTap.y === gridY) {
                 this._handleDoubleTap(gridX, gridY);
                 this._lastTap.time = 0;
                 const startX = pos.x;
@@ -1092,15 +1097,13 @@ export default class SidebarManager {
         // Drag handler for select variant: select/deselect individual tiles as you drag
         this.input.addBinding('mouse', 'left', 'held', () => {
             if (!this._selectDragStart) return;
-            if (!this.factoryManager) return;
             if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) return;
             const slot = this.slots[this.selectedIndex];
             const type = slot.dataset.machineType;
-            if (type !== 'delete-select') return;
+            if (type !== DELETE_SELECT) return;
             
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             
             // Get or create the cell key
             const cellKey = `${gridX},${gridY}`;
@@ -1146,102 +1149,23 @@ export default class SidebarManager {
         }, ["rotate-select-action"], 3);
 
         this.input.addBinding('mouse', 'middle', 'held', () => {
-            if (!this.factoryManager) return;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
-            if (gridX < 0 || gridY < 0) return;
-            const grid = this.factoryManager.grid;
-            if (gridX >= grid.length || gridY >= grid[0].length) return;
-            const machine = grid[gridX][gridY];
-            if (!machine) return;
-            const type = machine.name;
-            const rot = machine.data.rot;
-            if (!type) return;
-            for (let i = 0; i < this.slots.length; i++) {
-                const slot = this.slots[i];
-                const variants = JSON.parse(slot.dataset.variants ?? '[]');
-                const idx = variants.indexOf(type);
-                if (idx !== -1) {
-                    this.setSelection(i);
-                    slot.dataset.variantIndex = String(idx);
-                    slot.dataset.machineType = variants[idx];
-                    slot.dataset.rot = String(rot);
-                    slot.dataset.animRot = String(rot);
-                    const icon = slot.querySelector('canvas.machine-icon');
-                    this._drawIcon(icon, variants[idx]);
-                    icon.style.setProperty('--rot-anim', `${rot}deg`);
-                    icon.style.setProperty('--rot', `${rot}deg`);
-                    const indicator = slot.querySelector('.variant-indicator');
-                    if (indicator) {
-                        const dots = Array.from(indicator.children);
-                        dots.forEach((d, j) => d.classList.toggle('active', j === idx));
-                    }
-                    this._updateSlotCountDisplay(slot);
-                    if (type.split('-')[0] === 'spawner') {
-                        const chosen = (machine.data && machine.data.color) || machine.color || null;
-                        if (chosen !== null && chosen !== undefined) {
-                            this._setSpawnerColor(chosen);
-                        }
-                    }
-                    return;
-                }
-            }
+            const { gridX, gridY } = this._getGridCoordinates(pos);
+            this._pickMachineAtGridPosition(gridX, gridY);
         });
         this.input.addBinding('keyboard', 'ControlLeft', 'held', () => {
-            if (!this.factoryManager) return;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
-            if (gridX < 0 || gridY < 0) return;
-            const grid = this.factoryManager.grid;
-            if (gridX >= grid.length || gridY >= grid[0].length) return;
-            const machine = grid[gridX][gridY];
-            if (!machine) return;
-            const type = machine.name;
-            const rot = machine.data.rot;
-            if (!type) return;
-            for (let i = 0; i < this.slots.length; i++) {
-                const slot = this.slots[i];
-                const variants = JSON.parse(slot.dataset.variants ?? '[]');
-                const idx = variants.indexOf(type);
-                if (idx !== -1) {
-                    this.setSelection(i);
-                    slot.dataset.variantIndex = String(idx);
-                    slot.dataset.machineType = variants[idx];
-                    slot.dataset.rot = String(rot);
-                    slot.dataset.animRot = String(rot);
-                    const icon = slot.querySelector('canvas.machine-icon');
-                    this._drawIcon(icon, variants[idx]);
-                    icon.style.setProperty('--rot-anim', `${rot}deg`);
-                    icon.style.setProperty('--rot', `${rot}deg`);
-                    const indicator = slot.querySelector('.variant-indicator');
-                    if (indicator) {
-                        const dots = Array.from(indicator.children);
-                        dots.forEach((d, j) => d.classList.toggle('active', j === idx));
-                    }
-                    this._updateSlotCountDisplay(slot);
-                    if (type.split('-')[0] === 'spawner') {
-                        const chosen = (machine.data && machine.data.color) || machine.color || null;
-                        if (chosen !== null && chosen !== undefined) {
-                            this._setSpawnerColor(chosen);
-                        }
-                    }
-                    return;
-                }
-            }
+            const { gridX, gridY } = this._getGridCoordinates(pos);
+            this._pickMachineAtGridPosition(gridX, gridY);
         });
 
         this.input.addBinding('mouse', 'right', 'held', () => {
             if (!this.slots.some(s => s.dataset.machineType === 'delete')) return;
             const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(pos);
             const removed = this.factoryManager.removeMachine(gridX, gridY);
             if (removed) {
-                const size = window.innerHeight / 9;
-                const cx = gridX * size + size / 2;
-                const cy = gridY * size + size / 2;
+                const { x: cx, y: cy } = this._getGridCellCenter(gridX, gridY);
                 this.particleManager.spawnAt(cx, cy, { count: 10, colors: [0xFFC800FF, 0x494949FF], size: 10, speed: 300, life: 700 });
                 this._refreshAllSlots();
             }
@@ -1253,11 +1177,10 @@ export default class SidebarManager {
             ["keyboard", "ShiftLeft", "held"],
             ["wheel", "scroll", "press"]
         ], (payload) => {
-            if (performance.now() - this.lastRotate < 200) return;
-            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
+            const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();
             this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
-            this.lastRotateTarget = 'slot';
             const sel = this.slots[this.selectedIndex];
             if (!sel) return;
             let anim = parseInt(sel.dataset.animRot ?? '0', 10) || 0;
@@ -1266,7 +1189,7 @@ export default class SidebarManager {
             const icon = sel.querySelector('canvas.machine-icon');
             if (icon) icon.style.setProperty('--rot-anim', `${anim}deg`);
             const cur = parseInt(sel.dataset.rot ?? '0', 10) || 0;
-            const next = (cur + rotateAmount + 360) % 360;
+            const next = (cur + rotateAmount + ROTATION_CYCLE) % ROTATION_CYCLE;
             sel.dataset.rot = String(next);
             this.input.block(3);
             setTimeout(() => {this.input.unblock();}, 120);
@@ -1276,11 +1199,10 @@ export default class SidebarManager {
             ["keyboard", "ShiftRight", "held"],
             ["wheel", "scroll", "press"]
         ], (payload) => {
-            if (performance.now() - this.lastRotate < 200) return;
-            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
+            const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();
             this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
-            this.lastRotateTarget = 'slot';
             const sel = this.slots[this.selectedIndex];
             if (!sel) return;
             let anim = parseInt(sel.dataset.animRot ?? '0', 10) || 0;
@@ -1289,28 +1211,26 @@ export default class SidebarManager {
             const icon = sel.querySelector('canvas.machine-icon');
             if (icon) icon.style.setProperty('--rot-anim', `${anim}deg`);
             const cur = parseInt(sel.dataset.rot ?? '0', 10) || 0;
-            const next = (cur + rotateAmount + 360) % 360;
+            const next = (cur + rotateAmount + ROTATION_CYCLE) % ROTATION_CYCLE;
             sel.dataset.rot = String(next);
             this.input.block(3);
             setTimeout(() => {this.input.unblock();}, 120);
         }, ["select"], 2);
 
         this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
-            if (performance.now() - this.lastRotate < 200) return;
-            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
+            const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();
             this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
-            this.lastRotateTarget = 'machine';
             const gridPos = this.input.getPos();
-            const gridX = Math.floor(gridPos.x / window.innerHeight * 9);
-            const gridY = Math.floor(gridPos.y / window.innerHeight * 9);
+            const { gridX, gridY } = this._getGridCoordinates(gridPos);
             // if hovering a machine, rotate that machine
-            const grid = this.factoryManager && this.factoryManager.grid;
+            const grid = this.factoryManager?.grid;
             let hoveredMachine = null;
             if (grid && gridX >= 0 && gridY >= 0 && gridX < grid.length && gridY < (grid[0]?.length || 0)) hoveredMachine = grid[gridX][gridY];
             if (hoveredMachine) {
                 const cur = parseInt(this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0, 10) || 0;
-                const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
+                const newRot = ((cur + rotateAmount) % ROTATION_CYCLE + ROTATION_CYCLE) % ROTATION_CYCLE;
                 this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
                 if (typeof hoveredMachine.rotate === 'function') hoveredMachine.rotate(rotateAmount);
                 return;
@@ -1325,35 +1245,30 @@ export default class SidebarManager {
             const icon = sel.querySelector('canvas.machine-icon');
             if (icon) icon.style.setProperty('--rot-anim', `${anim}deg`);
             const cur = parseInt(sel.dataset.rot ?? '0', 10) || 0;
-            const next = (cur + rotateAmount + 360) % 360;
+            const next = (cur + rotateAmount + ROTATION_CYCLE) % ROTATION_CYCLE;
             sel.dataset.rot = String(next);
         }, [], 0);
 
         // rotate selection when there is an active selection (higher priority)
         this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
-            if (performance.now() - this.lastRotate < 200) return;
-            const rotateAmount = (payload.deltaY > 0 ? 90 : -90);
+            if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
+            const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();
             this.lastRotateDir = (rotateAmount > 0) ? 1 : -1;
-            if (this.factoryManager) {
-                this.factoryManager.rotateSelection(rotateAmount);
-                // block lower-priority handlers while rotate completes
-                this.input.block(3);
-                // wheel has no matching 'release' event to clear temporary block,
-                // so clear it shortly after to avoid permanently blocking input.
-                setTimeout(() => {this.input.unblock();}, 120);
-            }
+            this.factoryManager.rotateSelection(rotateAmount);
+            // block lower-priority handlers while rotate completes
+            this.input.block(3);
+            // wheel has no matching 'release' event to clear temporary block,
+            // so clear it shortly after to avoid permanently blocking input.
+            setTimeout(() => {this.input.unblock();}, 120);
         }, [], 1, () => {
-            return !!(this.factoryManager && this.factoryManager.selectedCells && this.factoryManager.selectedCells.size > 0);
+            return !!(this.factoryManager?.selectedCells?.size > 0);
         });
 
         // KeyR: rotate clipboard when pasting, otherwise reset factory
         this.input.addBinding('keyboard', 'KeyR', 'press', () => {
-            if (this.factoryManager && this.factoryManager.pasting) {
-                this.factoryManager.rotateClipboard(true);
-            } else if (this.factoryManager) {
-                this.factoryManager.resetFactory();
-            }
+            if (this.factoryManager.pasting) this.factoryManager.rotateClipboard(true);
+            else this.factoryManager.resetFactory();
         }, [], 1);
         this.input.addBinding('keyboard', 'Space', 'press', () => { this.factoryManager.toggle(); });
     }

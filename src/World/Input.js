@@ -7,6 +7,7 @@ export default class Input {
         this.blockedPriority = null; // if set, handlers with priority < blockedPriority are skipped
         this.mousePos = { x: 0, y: 0 };
         this.touches = new Map(); // id -> { id, x, y, touch }
+        this._touchOverUI = new Map(); // id -> boolean (touch started over .ui)
         this.disabledClasses = new Set(); // classes currently disabled (skip their handlers)
         // map className -> { timeoutId?, intervalId? }
         this._disabledTimers = new Map();
@@ -398,6 +399,11 @@ export default class Input {
         });
         // wheel / scroll
         window.addEventListener('wheel', (e) => {
+            // keep mousePos in sync so _isOverUI uses correct coordinates
+            if (typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+                this.mousePos.x = e.clientX;
+                this.mousePos.y = e.clientY;
+            }
             const payload = { deltaX: e.deltaX, deltaY: e.deltaY, event: e };
             // prevent page scroll when wheel handlers exist
             if (this.hasBindingPrefix('wheel:')) e.preventDefault();
@@ -409,25 +415,52 @@ export default class Input {
 
         // touch events (supports multiple touches)
         window.addEventListener('touchstart', (e) => {
-            // prevent browser default (scroll/zoom) when touch bindings exist
-            if (this.hasBindingPrefix('touch:')) {
+            // prevent default only for touches that start outside UI so mobile UI remains clickable
+            let hasGameTouch = false;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (!this._isOverUI(t.clientX, t.clientY)) { hasGameTouch = true; break; }
+            }
+            if (hasGameTouch && (this.hasBindingPrefix('touch:') || this.hasBindingPrefix('mouse:'))) {
                 try { e.preventDefault(); } catch (err) { /* ignore */ }
             }
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 const id = t.identifier;
+                const overUI = this._isOverUI(t.clientX, t.clientY);
+                this._touchOverUI.set(id, overUI);
+                // update mousePos so UI hit-testing uses this touch point
+                this.mousePos.x = t.clientX;
+                this.mousePos.y = t.clientY;
+                // UI touches should be ignored by game input routing so native UI click/tap still works
+                if (overUI) continue;
                 // store touch position
                 this.touches.set(id, { id, x: t.clientX, y: t.clientY, touch: t });
                 const keyBase = `touch:${id}`;
                 const pressKey = `${keyBase}:press`;
                 const genericPress = `touch:press`;
-                if (this.active.has(pressKey)) continue;
+                if (this.active.has(pressKey)) {
+                    // already active for this touch
+                    continue;
+                }
                 const now = Date.now();
                 const state = { pressedAt: now, holdFired: false, holdTimer: null, holdInterval: null };
                 this.active.set(pressKey, state);
                 const info = { touch: t, touches: Array.from(e.touches) };
+                // fire touch press handlers
                 this._executeHandlers(pressKey, info);
                 this._executeHandlers(genericPress, info);
+
+                // also map to mouse left press so existing mouse-based handlers (placement/draw) work
+                const mousePressKey = `mouse:left:press`;
+                const mouseReleaseKey = `mouse:left:release`;
+                const mouseHeldKey = `mouse:left:held`;
+                if (!this.active.has(mousePressKey)) {
+                    this.active.set(mousePressKey, state);
+                    this._executeHandlers(mousePressKey, info);
+                }
+
+                // schedule hold detection (kept for completeness, but we'll also fire held immediately for touch UX)
                 state.holdTimer = setTimeout(()=>{
                     state.holdFired = true;
                     const heldKey = `${keyBase}:held`;
@@ -436,45 +469,97 @@ export default class Input {
                     const payload = { touch: t, touches: Array.from(e.touches), duration };
                     this._executeHandlers(heldKey, payload);
                     this._executeHandlers(genericHeld, payload);
+                    // also notify mouse held
+                    this._executeHandlers(mouseHeldKey, duration);
                     state.holdInterval = setInterval(()=>{
                         const d = Date.now() - state.pressedAt;
                         const p2 = { touch: t, touches: Array.from(e.touches), duration: d };
                         this._executeHandlers(heldKey, p2);
                         this._executeHandlers(genericHeld, p2);
+                        this._executeHandlers(mouseHeldKey, d);
                     }, this.holdIntervalMs);
                 }, this.holdThreshold);
+
+                // For touch-based UX: fire held immediately so quick taps feel like placement and swipes draw
+                try {
+                    const immediateDuration = Date.now() - state.pressedAt;
+                    const heldPayload = { touch: t, touches: Array.from(e.touches), duration: immediateDuration };
+                    state.holdFired = true;
+                    this._executeHandlers(`${keyBase}:held`, heldPayload);
+                    this._executeHandlers('touch:held', heldPayload);
+                    this._executeHandlers(mouseHeldKey, immediateDuration);
+                    // clear the scheduled holdTimer to avoid duplicate firing
+                    if (state.holdTimer) { clearTimeout(state.holdTimer); state.holdTimer = null; }
+                    // start interval for continuous held notifications
+                    if (!state.holdInterval) {
+                        state.holdInterval = setInterval(()=>{
+                            const d = Date.now() - state.pressedAt;
+                            const p2 = { touch: t, touches: Array.from(e.touches), duration: d };
+                            this._executeHandlers(`${keyBase}:held`, p2);
+                            this._executeHandlers('touch:held', p2);
+                            this._executeHandlers(mouseHeldKey, d);
+                        }, this.holdIntervalMs);
+                    }
+                } catch (e) { /* ignore */ }
             }
         }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
-            // prevent browser default when touch bindings exist
-            if (this.hasBindingPrefix('touch:')) {
+            // prevent default only when at least one active moved touch is game-owned
+            let hasGameTouch = false;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const overUI = this._touchOverUI.get(t.identifier) === true;
+                if (!overUI) { hasGameTouch = true; break; }
+            }
+            if (hasGameTouch && (this.hasBindingPrefix('touch:') || this.hasBindingPrefix('mouse:'))) {
                 try { e.preventDefault(); } catch (err) { /* ignore */ }
             }
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 const id = t.identifier;
-                // update touch position
+                const startedOverUI = this._touchOverUI.get(id) === true;
+                // update touch position and mousePos for hit-testing
                 this.touches.set(id, { id, x: t.clientX, y: t.clientY, touch: t });
+                this.mousePos.x = t.clientX;
+                this.mousePos.y = t.clientY;
+                if (startedOverUI) continue;
                 const keyBase = `touch:${id}`;
                 const moveKey = `${keyBase}:move`;
                 const genericMove = `touch:move`;
                 const info = { touch: t, touches: Array.from(e.touches) };
                 this._executeHandlers(moveKey, info);
                 this._executeHandlers(genericMove, info);
+                // forward to mouse move/held handlers so dragging on mobile acts like held mouse
+                try { this._executeHandlers('mouse:left:move', info); } catch (e) {}
+                try { this._executeHandlers('mouse:left:held', Date.now() - (this.active.get(`touch:${id}:press`)?.pressedAt || 0)); } catch (e) {}
             }
         }, { passive: false });
 
         window.addEventListener('touchend', (e) => {
-            // prevent browser default when touch bindings exist
-            if (this.hasBindingPrefix('touch:')) {
+            // prevent default only for game-owned touches ending
+            let hasGameTouch = false;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const overUI = this._touchOverUI.get(t.identifier) === true;
+                if (!overUI) { hasGameTouch = true; break; }
+            }
+            if (hasGameTouch && (this.hasBindingPrefix('touch:') || this.hasBindingPrefix('mouse:'))) {
                 try { e.preventDefault(); } catch (err) { /* ignore */ }
             }
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 const id = t.identifier;
-                // final update then remove
+                const startedOverUI = this._touchOverUI.get(id) === true;
+                this._touchOverUI.delete(id);
+                // final update then remove; update mousePos so release handlers see correct coords
                 this.touches.set(id, { id, x: t.clientX, y: t.clientY, touch: t });
+                this.mousePos.x = t.clientX;
+                this.mousePos.y = t.clientY;
+                if (startedOverUI) {
+                    this.touches.delete(id);
+                    continue;
+                }
                 const keyBase = `touch:${id}`;
                 const pressKey = `${keyBase}:press`;
                 const releaseKey = `${keyBase}:release`;
@@ -489,16 +574,24 @@ export default class Input {
                     if (state.holdTimer) clearTimeout(state.holdTimer);
                     if (state.holdInterval) clearInterval(state.holdInterval);
                     this.active.delete(pressKey);
+                    // also clear any mapped mouse press state created by this touch
+                    const mousePressKey = `mouse:left:press`;
+                    if (this.active.has(mousePressKey)) {
+                        const mstate = this.active.get(mousePressKey);
+                        if (mstate === state) this.active.delete(mousePressKey);
+                    }
                 }
                 const info = { touch: t, touches: Array.from(e.touches) };
                 this._executeHandlers(releaseKey, info);
                 this._executeHandlers(genericRelease, info);
                 // clear any temporary blocks tied to this touch press
                 this._clearBlockedForPressKey(pressKey);
+                this._clearBlockedForPressKey('mouse:left:press');
                 if (this.keyMap.has(heldKey) && duration > 0 && (!state || !state.holdFired)) {
                     const payload = { touch: t, touches: Array.from(e.touches), duration };
                     this._executeHandlers(heldKey, payload);
                     this._executeHandlers(genericHeld, payload);
+                    try { this._executeHandlers('mouse:left:held', duration); } catch (e) {}
                 }
                 this.touches.delete(id);
             }
@@ -508,6 +601,12 @@ export default class Input {
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 const id = t.identifier;
+                const startedOverUI = this._touchOverUI.get(id) === true;
+                this._touchOverUI.delete(id);
+                if (startedOverUI) {
+                    this.touches.delete(id);
+                    continue;
+                }
                 const pressKey = `touch:${id}:press`;
                 const state = this.active.get(pressKey);
                 if (state) {

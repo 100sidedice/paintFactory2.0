@@ -1,0 +1,38 @@
+/* Styles specific to goal overlays and goal sidebar visuals */
+
+/* Reusable full-screen overlay for goal UI */
+.goal-overlay {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+/* Time-up overlay: semi-opaque dark backdrop with centered message */
+.goal-overlay.time-up {
+  background: rgba(0,0,0,0.8);
+}
+.goal-overlay.time-up .goal-message {
+  color: #FFFFFF;
+  font-size: 36px;
+  text-align: center;
+}
+
+/* Win/fade overlay: black background that fades in via opacity transition */
+.goal-overlay.win-fade {
+  background: #000;
+  opacity: 0;
+  transition: opacity 800ms ease-in-out;
+}
+
+/* Small helper for goal entries (keeps goal.css useful for future moves) */
+.goal-entry { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.goal-swatch { width: 36px; height: 36px; image-rendering: pixelated; }
+.goal-text { color: #FFFFFF; font-size: 14px; }
+.goal-have { font-weight: 700; }
+.goal-need { opacity: 0.9; }

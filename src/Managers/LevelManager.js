@@ -75,18 +75,21 @@ export default class LevelManager {
 
         // attempt a light reset of factory state so new level can be applied
         // regenerate grid if possible using level dimensions if provided
-        const gw = levelData.gridWidth || levelData.width || 16;
-        const gh = levelData.gridHeight || levelData.height || 16;
+        const tileSize = (window.innerHeight || 1) / 9;
+        const defaultGw = Math.max(1, Math.ceil((window.innerWidth || 1) / tileSize));
+        const defaultGh = 9;
+        const gw = levelData.gridWidth || levelData.width || defaultGw;
+        const gh = levelData.gridHeight || levelData.height || defaultGh;
         this.factoryManager.generateGrid(gw, gh);
         this.factoryManager.items = {};
         this.factoryManager.generateQueue();
         this.sidebarManager.populateSidebar(levelData);
         // populate goal UI
-        try { this.goalManager.populate(levelData.Goal || levelData.goal || {}); } catch (e) { /* ignore */ }
+        this.goalManager.populate(levelData.Goal || levelData.goal || {});
 
         // place machines from levelData.Placed (or placed) into the grid
         const placedObj = levelData.Placed ?? levelData.placed ?? null;
-        if (placedObj && this.factoryManager) {
+        if (placedObj) {
             for (const coordKey of Object.keys(placedObj)) {
                 const raw = placedObj[coordKey];
                 let parts = null;
@@ -147,8 +150,8 @@ export default class LevelManager {
     }
 
     // compatibility accessors relied on elsewhere in the codebase
-    get selectedIndex() { return this.sidebarManager?.selectedIndex ?? -1; }
-    get slots() { return this.sidebarManager?.slots ?? []; }
+    get selectedIndex() { return this.sidebarManager.selectedIndex; }
+    get slots() { return this.sidebarManager.slots; }
 
     // Register input bindings for level switching.
     setupInputBindings() {
@@ -159,7 +162,7 @@ export default class LevelManager {
 
     // Cycle levels. If `forward` is true advance, otherwise go backwards.
     cycleLevel(forward = true) {
-        const levels = this.assetManager.get('Levels') || {};
+        const levels = this.assetManager.get('Levels') ?? {};
         const keys = Object.keys(levels);
         if (!keys || keys.length === 0) return false;
         let idx = Math.max(0, keys.indexOf(this.currentLevelKey));
@@ -196,7 +199,7 @@ export default class LevelManager {
         funnyEl.style.pointerEvents = 'auto';
         // avoid adding multiple listeners
         const handler = (ev) => {
-            try { if (this.goalManager && typeof this.goalManager.toggleSpeedBoost === 'function') this.goalManager.toggleSpeedBoost(); } catch (e) {}
+            this.goalManager.toggleSpeedBoost();
             ev.stopPropagation();
         };
         funnyEl.addEventListener('click', handler);
@@ -205,76 +208,72 @@ export default class LevelManager {
 
     // Export current placed machines into a JSON snippet and copy to clipboard.
     exportPlacedToClipboard() {
-        try {
-            if (!this.factoryManager || !this.factoryManager.grid) return;
-            const placed = {};
-            const w = this.factoryManager.grid.length;
-            const h = this.factoryManager.grid[0]?.length || 0;
-            for (let x = 0; x < w; x++) {
-                for (let y = 0; y < h; y++) {
-                    const m = this.factoryManager.grid[x][y];
-                    if (!m) continue;
-                    const key = `${x}.${y}`;
-                    const type = m.name || (m.data && m.data.type) || null;
-                    const rot = (m.data && m.data.rot) || 0;
-                    if (!type) continue;
-                    // if spawner, include color in the exported name
-                    let outType = type;
-                    if (String(type).toLowerCase().startsWith('spawner')) {
-                        const col = (m.data && (m.data.color ?? m.color)) ?? m.color ?? null;
-                        if (col != null) {
-                            // format as #RRGGBBAA
-                            let hex = null;
-                            if (typeof col === 'number') {
-                                hex = ('00000000' + (col >>> 0).toString(16)).slice(-8).toUpperCase();
-                                hex = `#${hex}`;
-                            } else if (typeof col === 'string') {
-                                hex = col.startsWith('#') ? col.toUpperCase() : (`#${col.toUpperCase()}`);
-                            }
-                            if (hex) outType = `${type} ${hex}`;
+        if (!this.factoryManager.grid) return;
+        const placed = {};
+        const w = this.factoryManager.grid.length;
+        const h = this.factoryManager.grid[0]?.length ?? 0;
+        for (let x = 0; x < w; x++) {
+            for (let y = 0; y < h; y++) {
+                const m = this.factoryManager.grid[x][y];
+                if (!m) continue;
+                const key = `${x}.${y}`;
+                const type = m.name || (m.data && m.data.type) || null;
+                const rot = (m.data && m.data.rot) || 0;
+                if (!type) continue;
+                // if spawner, include color in the exported name
+                let outType = type;
+                if (String(type).toLowerCase().startsWith('spawner')) {
+                    const col = (m.data && (m.data.color ?? m.color)) ?? m.color ?? null;
+                    if (col != null) {
+                        // format as #RRGGBBAA
+                        let hex = null;
+                        if (typeof col === 'number') {
+                            hex = ('00000000' + (col >>> 0).toString(16)).slice(-8).toUpperCase();
+                            hex = `#${hex}`;
+                        } else if (typeof col === 'string') {
+                            hex = col.startsWith('#') ? col.toUpperCase() : (`#${col.toUpperCase()}`);
                         }
+                        if (hex) outType = `${type} ${hex}`;
                     }
-                    if (rot && rot !== 0) placed[key] = { type: outType, rot };
-                    else placed[key] = outType;
                 }
+                if (rot && rot !== 0) placed[key] = { type: outType, rot };
+                else placed[key] = outType;
             }
-            const out = {
-                Header: this.currentLevelData?.Header || this.currentLevelKey || 'New Level',
-                Description: this.currentLevelData?.Description || this.currentLevelData?.description || '',
-                funny: this.currentLevelData?.funny || this.currentLevelData?.Funny || '',
-                Hints: this.currentLevelData?.Hints || this.currentLevelData?.hints || [],
-                Goal: this.currentLevelData?.Goal || this.currentLevelData?.goal || {},
-                Machines: this.currentLevelData?.Machines || this.currentLevelData?.machines || [],
-                "spawner-items": this.currentLevelData?.['spawner-items'] || this.currentLevelData?.spawnerItems || [],
-                Placed: placed
-            };
-            // Build a pretty JSON string but keep `Machines` and `spawner-items` compact
-            const indent = (s, pad = 4) => s.split('\n').map((line, i) => (i===0? '': ' '.repeat(pad)) + line).join('\n');
-            const parts = [];
-            parts.push(`"Header": ${JSON.stringify(out.Header)}`);
-            parts.push(`"Description": ${JSON.stringify(out.Description)}`);
-            parts.push(`"funny": ${JSON.stringify(out.funny)}`);
-            parts.push(`"Hints": ${indent(JSON.stringify(out.Hints || [], null, 4))}`);
-            parts.push(`"Goal": ${indent(JSON.stringify(out.Goal || {}, null, 4))}`);
-            // compact machines / spawner-items
-            parts.push(`"Machines": ${JSON.stringify(out.Machines || [])}`);
-            parts.push(`"spawner-items": ${JSON.stringify(out['spawner-items'] || [])}`);
-            // Placed - pretty
-            parts.push(`"Placed": ${indent(JSON.stringify(out.Placed || {}, null, 4))}`);
-            // assemble with proper indentation
-            const json = "{\n    " + parts.join(",\n    ") + "\n}";
-            if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-                navigator.clipboard.writeText(json).then(() => {
-                    console.debug('LevelManager: copied placed JSON to clipboard');
-                }).catch(err => {
-                    console.warn('LevelManager: clipboard write failed', err);
-                    prompt('Level JSON (copy manually):', json);
-                });
-            } else {
+        }
+        const out = {
+            Header: this.currentLevelData?.Header || this.currentLevelKey || 'New Level',
+            Description: this.currentLevelData?.Description || this.currentLevelData?.description || '',
+            funny: this.currentLevelData?.funny || this.currentLevelData?.Funny || '',
+            Hints: this.currentLevelData?.Hints || this.currentLevelData?.hints || [],
+            Goal: this.currentLevelData?.Goal || this.currentLevelData?.goal || {},
+            Machines: this.currentLevelData?.Machines || this.currentLevelData?.machines || [],
+            "spawner-items": this.currentLevelData?.['spawner-items'] || this.currentLevelData?.spawnerItems || [],
+            Placed: placed
+        };
+        // Build a pretty JSON string but keep `Machines` and `spawner-items` compact
+        const indent = (s, pad = 4) => s.split('\n').map((line, i) => (i===0? '': ' '.repeat(pad)) + line).join('\n');
+        const parts = [];
+        parts.push(`"Header": ${JSON.stringify(out.Header)}`);
+        parts.push(`"Description": ${JSON.stringify(out.Description)}`);
+        parts.push(`"funny": ${JSON.stringify(out.funny)}`);
+        parts.push(`"Hints": ${indent(JSON.stringify(out.Hints || [], null, 4))}`);
+        parts.push(`"Goal": ${indent(JSON.stringify(out.Goal || {}, null, 4))}`);
+        // compact machines / spawner-items
+        parts.push(`"Machines": ${JSON.stringify(out.Machines || [])}`);
+        parts.push(`"spawner-items": ${JSON.stringify(out['spawner-items'] || [])}`);
+        // Placed - pretty
+        parts.push(`"Placed": ${indent(JSON.stringify(out.Placed || {}, null, 4))}`);
+        // assemble with proper indentation
+        const json = "{\n    " + parts.join(",\n    ") + "\n}";
+        if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            navigator.clipboard.writeText(json).then(() => {
+                console.debug('LevelManager: copied placed JSON to clipboard');
+            }).catch(err => {
+                console.warn('LevelManager: clipboard write failed', err);
                 prompt('Level JSON (copy manually):', json);
-            }
-        } catch (e) {
-            console.warn('LevelManager: exportPlacedToClipboard failed', e);
+            });
+        } else {
+            prompt('Level JSON (copy manually):', json);
         }
     }
 }

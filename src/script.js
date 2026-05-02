@@ -5,7 +5,6 @@ import FactoryManager from "./Managers/FactoryManager.js";
 import Input from "./World/Input.js";
 import LevelManager from "./Managers/LevelManager.js";
 import ParticleManager from "./Managers/ParticleManager.js";
-import BackgroundManager from "./Managers/BackgroundManager.js";
 import { setChannel } from "./Helpers/colorHelpers.js";
 
 class Program {
@@ -21,9 +20,6 @@ class Program {
     }
     async preloadAssets() {
         await this.assetManager.preload();
-        // Preload background tilemaps/images before initializing the rest
-        this.BackgroundManager = new BackgroundManager(this.assetManager);
-        await this.BackgroundManager.preload();
         this.dataManager = new DataManager(this.assetManager);
         this.onReady(); // After all assets are loaded, initialize the program
     }
@@ -110,12 +106,10 @@ class Program {
     draw() {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.fillStyle = '#222222FF';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
         // Pixel art: disable smoothing on canvas context
         this.ctx.imageSmoothingEnabled = false;
-        // Draw background first
-        if (this.BackgroundManager) this.BackgroundManager.draw(this.ctx);
+
         // Draw factory and machines
         this.FactoryManager.draw(this.ctx);
         // Draw particle effects above factory
@@ -123,9 +117,9 @@ class Program {
 
         // cursor & placement preview
         const pos = this.input.getPos();
-        const gridX = Math.floor(pos.x / window.innerHeight * 9);
-        const gridY = Math.floor(pos.y / window.innerHeight * 9);
         const size = window.innerHeight / 9;
+        const gridX = Math.floor(pos.x / size);
+        const gridY = Math.floor(pos.y / size);
 
         // determine selected slot/type/rotation from LevelManager
         let selectedType = null;

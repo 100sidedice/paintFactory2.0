@@ -28,7 +28,10 @@ export default class FactoryManager {
         this.clipPos = { x: 0, y: 0 }; // for tracking mouse position clipboard origin
         this.pasteTarget = null;
     }
-    generateGrid(x=20, y=16) {
+    generateGrid(
+        x = Math.max(1, Math.ceil((window.innerWidth || 1) / ((window.innerHeight || 1) / 9))),
+        y = 9
+    ) {
         this.grid = [];
         for (let i = 0; i < x; i++) {
             this.grid[i] = [];
@@ -204,7 +207,7 @@ export default class FactoryManager {
             // occupancy
             else if (this.grid[gridX] && this.grid[gridX][gridY]) { canPlace = false; reason = 'occupied'; }
             // slot/limit checks via LevelManager -> SidebarManager
-            else if (this.levelManager && Array.isArray(this.levelManager.slots)) {
+            else if (Array.isArray(this.levelManager.slots)) {
                 let foundIdx = -1;
                 let slotEl = null;
                 for (let i = 0; i < this.levelManager.slots.length; i++) {
@@ -427,11 +430,9 @@ export default class FactoryManager {
             const colliding = isItemColliding(machine.data.x ?? 0, machine.data.y ?? 0, it, size, collision, machine.data.rot);
             if (colliding) {
                 if (machine.onItemCollision) machine.onItemCollision(it, size);
-                try {
-                    const gm = this.levelManager && this.levelManager.goalManager;
-                    if (gm && typeof gm.recordMachineCollision === 'function') gm.recordMachineCollision(machine.name || (machine.data && machine.data.type) || '', machine.data.x, machine.data.y, it.id);
-                } catch (e) {
-                    // swallow errors from goal tracking
+                const gm = this.levelManager?.goalManager;
+                if (gm && typeof gm.recordMachineCollision === 'function') {
+                    gm.recordMachineCollision(machine.name || (machine.data && machine.data.type) || '', machine.data.x, machine.data.y, it.id);
                 }
             } else {
                 // still call machine handler if present (some machines expect to be notified even when not colliding)

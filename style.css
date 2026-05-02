@@ -1,11 +1,14 @@
 body {
-    background-color: #111111FF;
     margin: 0;
     padding: 0;
+    overflow: hidden; /* prevent scrollbars from appearing when canvas is larger than viewport */
+    background-image: url(../Assets/tilemaps/bg/idle.png);
+    background-size: 11.11dvh 11.11dvh;
+    image-rendering: pixelated;
 }
 canvas {
     position: fixed;
-    top: 0px;
+    top: 0;
     left:50%;
     transform: translateX(-50%);
     z-index: 1;
@@ -18,8 +21,8 @@ canvas {
     position: fixed;
     top: 0;
     left: 0;
-    width: 14.3vh;
-    height: 100vh; /* Viewport height */
+    width: 14.3dvh;
+    height: 100dvh; /* Viewport height */
     overflow-y: none; /* Adds scrollbar only when needed */
     background-color: #1b1b1bFF;
     pointer-events: auto;
@@ -32,15 +35,15 @@ canvas {
 .spawner-panel-toggle {
     position: fixed;
     top: 0;
-    left: 14.3vh;
-    width: 4vh;
-    height: 13vh;
+    left: 14.3dvh;
+    width: 4dvh;
+    height: 13dvh;
     padding: 0;
-    border: 3px solid #00000066;
+    border: 0.3dvh solid #00000066;
     border-left: none;
     background: #2a2a2aff;
     color: #FFFFFFFF;
-    font-size: 18px;
+    font-size: 1.8dvh;
     font-weight: 800;
     cursor: pointer;
     pointer-events: auto;
@@ -55,19 +58,19 @@ canvas {
 
 .spawner-panel {
     position: fixed;
-    top: 2.5vh;
-    left: 18.3vh;
-    width: min(56vh, calc(100vw - 18vh));
-    height: 14.5vh;
+    top: 2.5dvh;
+    left: 18.3dvh;
+    width: min(56dvh, calc(100vw - 18dvh));
+    height: 14.5dvh;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 10px;
+    padding: 1dvh;
     box-sizing: border-box;
     background: #202020F2;
-    border: 3px solid #00000066;
+    border: 0.3dvh solid #00000066;
     pointer-events: none;
     opacity: 0;
-    transform: translateX(-12px);
+    transform: translateX(-1.2dvh);
     transition: opacity 0.16s ease, transform 0.16s ease;
     z-index: 12;
 }
@@ -81,8 +84,8 @@ canvas {
 .spawner-panel-body {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: 92px;
-    gap: 10px;
+    grid-auto-columns: 11dvh;
+    gap: 1dvh;
     align-items: stretch;
 }
 
@@ -91,11 +94,11 @@ canvas {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    width: 92px;
-    min-height: 92px;
-    padding: 10px 8px;
-    border: 2px solid #00000066;
+    gap: 0.6dvh;
+    width: 11dvh;
+    min-height: 11dvh;
+    padding: 1dvh 0.8dvh;
+    border: 0.2dvh solid #00000066;
     background: #111111CC;
     color: #FFFFFFFF;
     cursor: pointer;
@@ -107,8 +110,8 @@ canvas {
 }
 
 .spawner-panel-icon {
-    width: 44px;
-    height: 44px;
+    width: 4.5dvh;
+    height: 4.5dvh;
     flex: 0 0 auto;
     image-rendering: pixelated;
     position: static;
@@ -117,9 +120,9 @@ canvas {
 
 .spawner-panel-count {
     font-weight: 800;
-    text-shadow: 0 0 2px #000000CC;
+    text-shadow: 0 0 0.2dvh #000000CC;
     color: #FFFFFFFF;
-    font-size: 18px;
+    font-size: 1.8dvh;
 }
 
 /* Goal sidebar on the right showing goal swatches and counts */
@@ -128,8 +131,8 @@ canvas {
     position: fixed;
     top: 0;
     right: 0;
-    width: 23vh; /* 14.3 * 1.5 */
-    height: 100vh;
+    width: 23dvh; /* 14.3 * 1.5 */
+    height: 100dvh;
     background-color: #1b1b1bFF;
     pointer-events: auto;
     touch-action: auto;
@@ -137,8 +140,8 @@ canvas {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 12px;
+    gap: 1.2dvh;
+    padding: 1.2dvh;
     box-sizing: border-box;
     
 }
@@ -146,12 +149,12 @@ canvas {
  #goal_sidebar .goal-entry {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 1.2dvh;
     width: 100%;
     color: #FFFFFFFF;
 }
 
-#goal_sidebar .goal-swatch { width: 48px; height: 48px; image-rendering: pixelated; }
+#goal_sidebar .goal-swatch { width: 4.8dvh; height: 4.8dvh; image-rendering: pixelated; }
 
 /* override global canvas rules for sidebar swatches (global `canvas` is fixed/centered) */
 #goal_sidebar .goal-swatch {
@@ -160,18 +163,18 @@ canvas {
     left: auto;
     top: auto;
     display: block;
-    width: 48px;
-    height: 48px;
+    width: 4.8dvh;
+    height: 4.8dvh;
 }
 
-#goal_sidebar .goal-text { color: #FFFFFFFF; font-weight: 800; font-size: 24px; }
+#goal_sidebar .goal-text { color: #FFFFFFFF; font-weight: 800; font-size: 2.4dvh; }
 
 .machine {
     --border_color: #00000066;
-    border: 3px solid var(--border_color);
-    padding: 3.8px;
-    width: 13vh;
-    height: 13vh;
+    border: 0.3dvh solid var(--border_color);
+    padding: 0.4dvh;
+    width: 13dvh;
+    height: 13dvh;
     z-index: 11;
     position: relative;
     display: flex;
@@ -200,14 +203,14 @@ canvas {
 #machine_sidebar .paste-status {
     position: absolute;
     left: 50%;
-    top: 0vh;
-    transform: translateX(-50%) translateY(3px);
-    padding: 2px 6px;
-    border-radius: 4px;
+    top: 0dvh;
+    transform: translateX(-50%) translateY(0.3dvh);
+    padding: 0.2dvh 0.6dvh;
+    border-radius: 0.4dvh;
     background: #111111E6;
-    border: 1px solid rgba(0, 255, 255, 0.4);
+    border: 0.1dvh solid rgba(0, 255, 255, 0.4);
     color: #FFFFFFFF;
-    font-size: 14px;
+    font-size: 1.4dvh;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -224,10 +227,10 @@ canvas {
 
 @keyframes sidebar-hold-shake {
     0% { transform: translateX(0) rotate(0deg); }
-    20% { transform: translateX(-1px) rotate(-1deg); }
-    40% { transform: translateX(1px) rotate(1deg); }
-    60% { transform: translateX(-1px) rotate(0.5deg); }
-    80% { transform: translateX(1px) rotate(-0.5deg); }
+    20% { transform: translateX(-0.1dvh) rotate(-1deg); }
+    40% { transform: translateX(0.1dvh) rotate(1deg); }
+    60% { transform: translateX(-0.1dvh) rotate(0.5deg); }
+    80% { transform: translateX(0.1dvh) rotate(-0.5deg); }
     100% { transform: translateX(0) rotate(0deg); }
 }
 
@@ -264,50 +267,50 @@ canvas {
 /* spawner color list under spawner slots */
 #machine_sidebar .spawner-color-list {
     position: absolute;
-    left: 6px;
-    top: 28px;
+    left: 0.6dvh;
+    top: 3dvh;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0.4dvh;
     z-index: 20;
 }
 #machine_sidebar .spawner-color-entry {
     display: flex;
-    gap: 6px;
+    gap: 0.6dvh;
     align-items: center;
 }
 #machine_sidebar .spawner-color {
     cursor: pointer;
     font-weight: 700;
-    text-shadow: 0 0 2px #000000CC;
+    text-shadow: 0 0 0.2dvh #000000CC;
 }
 #machine_sidebar .spawner-color.selected {
-    text-shadow: 0 0 6px #00FFFFE6;
-    filter: drop-shadow(0 0 6px #00FFFF99);
+    text-shadow: 0 0 0.6dvh #00FFFFE6;
+    filter: drop-shadow(0 0 0.6dvh #00FFFF99);
 }
 #machine_sidebar .spawner-color-count {
     font-weight: 700;
     color: #FFFFFFFF;
-    text-shadow: 0 0 2px #000000CC;
+    text-shadow: 0 0 0.2dvh #000000CC;
 }
 
 /* variant indicator (small line of squares at the bottom center of a slot) */
 #machine_sidebar .variant-indicator {
     position: absolute;
     left: 50%;
-    bottom: 6px;
+    bottom: 0.6dvh;
     transform: translateX(-50%);
     display: flex;
-    gap: 4px;
+    gap: 0.4dvh;
     align-items: center;
     pointer-events: none; /* allow clicks to pass through to slot/icon */
 }
 
 #machine_sidebar .variant-dot {
-    width: 10px;
-    height: 10px;
+    width: 1dvh;
+    height: 1dvh;
     background: #666666FF; /* gray */
-    box-shadow: inset 0 0 0 1px #00000040;
+    box-shadow: inset 0 0 0 0.1dvh #00000040;
 }
 
 #machine_sidebar .variant-dot.active {
@@ -317,28 +320,28 @@ canvas {
 /* small count badge in top-left of slot */
 #machine_sidebar .machine-count {
     position: absolute;
-    top: 4px;
-    left: 6px;
-    font-size: 20px;
+    top: 0.4dvh;
+    left: 0.6dvh;
+    font-size: 2dvh;
     font-weight: 700;
     color: #FFFFFFFF;
     z-index: 20;
     pointer-events: none;
-    text-shadow: 0 0 2px #000000CC;
+    text-shadow: 0 0 0.2dvh #000000CC;
 }
 
 #machine_sidebar .spawner-selected-count {
     position: absolute;
-    top: 4px;
+    top: 0.4dvh;
     left: auto;
-    right: 6px;
+    right: 0.6dvh;
     text-align: right;
-    font-size: 20px;
+    font-size: 2dvh;
     font-weight: 700;
     color: #FFFFFFFF;
     z-index: 20;
     pointer-events: none;
-    text-shadow: 0 0 2px #000000CC;
+    text-shadow: 0 0 0.2dvh #000000CC;
 }
 
 /* Debug overlay container */
@@ -348,13 +351,13 @@ canvas {
 
 #debug {
     max-width: 60vw;
-    max-height: 40vh;
+    max-height: 40dvh;
     overflow: auto;
     pointer-events: auto; /* make selectable when visible */
-    padding: 8px;
+    padding: 0.8dvh;
     background: rgba(0,0,0,0.6);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 4px;
+    border: 0.1dvh solid rgba(255,255,255,0.08);
+    border-radius: 0.4dvh;
     white-space: pre-wrap;
     line-height: 1.2;
     z-index: 1001;
@@ -365,9 +368,9 @@ canvas {
     top: 0;
     left: 50%;
     width: 100%;
-    height: 100px;
+    height: 12dvh;
     transform: translateX(-50%);
-    padding: 8px 0;
+    padding: 0.8dvh 0;
     z-index: 50;
     pointer-events: none; /* allow clicks to pass through */
 }
@@ -375,15 +378,15 @@ canvas {
     position: absolute;
     left: 55%;
     transform: translateX(-50%);
-    top: 76px; /* positioned under the id */
+    top: 9dvh; /* positioned under the id */
     display: block;
-    padding: 4px 8px;
+    padding: 0.4dvh 0.8dvh;
     
     color: #00FF00CC;
-    font-size: 30px;
+    font-size: 3dvh;
     z-index: 51;
     pointer-events: none;
-    text-shadow: #000000FF 0px 0px 8px;
+    text-shadow: #000000FF 0 0 0.8dvh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
 }
@@ -391,29 +394,29 @@ canvas {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    top: 14px; /* near top of header */
+    top: 1.6dvh; /* near top of header */
     display: block;
-    padding: 4px 8px;
+    padding: 0.4dvh 0.8dvh;
     color: #FFFFFFCC;
-    font-size: 50px;
+    font-size: 5dvh;
     z-index: 51;
     pointer-events: none;
-    text-shadow: #000000FF 0px 0px 8px;
+    text-shadow: #000000FF 0 0 0.8dvh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
 }
 #funny-text {
     position: fixed;
-    bottom: 0px;
+    bottom: 0;
     left: 50%;
     transform: translateX(-50%);
-    padding: 4px 8px;
+    padding: 0.4dvh 0.8dvh;
     color: #FFFFFFCC;
-    font-size: 30px;
+    font-size: 3dvh;
     white-space: nowrap; /* prevent wrapping */
     z-index: 51;
     pointer-events: auto;
-    text-shadow: #000000FF 0px 0px 8px;
+    text-shadow: #000000FF 0 0 0.8dvh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -423,21 +426,35 @@ canvas {
     z-index: 6000 !important;
 }
 
+/* Mobile UX: prevent selecting UI text and double-tap zoom on controls */
+.ui,
+#machine_sidebar,
+#goal_sidebar,
+.spawner-panel,
+.spawner-panel-toggle,
+.reset-button,
+.back-button {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+}
+
 /* Reset button placed in bottom-right corner matching UI style */
 .reset-button {
     position: fixed;
-    right: 16px;
-    bottom: 16px;
+    right: 1.6dvh;
+    bottom: 1.6dvh;
     z-index: 6000;
     background-color: #1b1b1bFF;
     color: #FFFFFFFF;
-    border: 3px solid #00000066;
-    padding: 8px 12px;
+    border: 0.3dvh solid #00000066;
+    padding: 0.8dvh 1.2dvh;
     font-weight: 800;
-    font-size: 18px;
+    font-size: 1.8dvh;
     cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
-    border-radius: 6px;
+    box-shadow: 0 0.4dvh 0.8dvh rgba(0,0,0,0.6);
+    border-radius: 0.6dvh;
     user-select: none;
     pointer-events: auto;
 }
@@ -446,5 +463,5 @@ canvas {
 
 /* Back button shares reset styling but offset to the left so both are visible */
 .back-button {
-    right: 132px; /* place to the left of the reset button */
+    right: 13.2dvh; /* place to the left of the reset button */
 }
