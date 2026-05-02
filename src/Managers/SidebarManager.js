@@ -80,7 +80,7 @@ export default class SidebarManager {
         if (!this.spawnerPanelToggle) {
             const toggle = document.createElement('button');
             toggle.type = 'button';
-            toggle.className = 'spawner-panel-toggle';
+            toggle.className = 'spawner-panel-toggle ui';
             toggle.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.spawnerPanelOpen = !this.spawnerPanelOpen;
@@ -92,7 +92,7 @@ export default class SidebarManager {
 
         if (!this.spawnerPanel) {
             const panel = document.createElement('aside');
-            panel.className = 'spawner-panel';
+            panel.className = 'spawner-panel ui';
 
             const body = document.createElement('div');
             body.className = 'spawner-panel-body';
@@ -150,6 +150,7 @@ export default class SidebarManager {
 
         for (const si of colors) {
             const color = intHex(si.color);
+            const remaining = this._getSpawnerRemaining(color);
             const entry = document.createElement('button');
             entry.type = 'button';
             entry.className = 'spawner-panel-entry';
@@ -163,11 +164,13 @@ export default class SidebarManager {
             const icon = document.createElement('canvas');
             icon.className = 'spawner-panel-icon';
             this._drawSpawnerPreview(icon, color);
+            icon.style.filter = (remaining <= 0) ? 'grayscale(100%)' : '';
             entry.appendChild(icon);
 
             const count = document.createElement('span');
             count.className = 'spawner-panel-count';
-            count.textContent = String(this._getSpawnerRemaining(color));
+            count.textContent = String(remaining);
+            count.style.color = (remaining <= 0) ? 'red' : 'white';
             entry.appendChild(count);
             this.spawnerPanelBody.appendChild(entry);
         }
@@ -207,6 +210,10 @@ export default class SidebarManager {
             for (let j = 0; j < machines.length; j++) {
                 const tt = machines[j][0];
                 if (tt.split('-')[0] === base) variants.push(tt);
+            }
+            // If this is delete, add rotate and select as special action variants
+            if (base === 'delete') {
+                variants.push('delete-rotate', 'delete-select');
             }
             seenBases.add(base);
             this._addSlot(variants);
@@ -252,14 +259,21 @@ export default class SidebarManager {
             slot.appendChild(indicator);
         }
 
-        const countEl = document.createElement('div');
-        countEl.className = 'machine-count';
-        slot.appendChild(countEl);
-        this._updateSlotCountDisplay(slot);
-
         if (variants.indexOf('spawner') !== -1) {
             slot.classList.add('spawner-slot');
         }
+
+        const countEl = document.createElement('div');
+        countEl.className = 'machine-count';
+        slot.appendChild(countEl);
+
+        if (slot.classList.contains('spawner-slot')) {
+            const selectedCountEl = document.createElement('div');
+            selectedCountEl.className = 'spawner-selected-count';
+            slot.appendChild(selectedCountEl);
+        }
+
+        this._updateSlotCountDisplay(slot);
 
         icon.addEventListener('wheel', (e) => {
             if (performance.now() - this.lastRotate < 150) return;
@@ -294,6 +308,36 @@ export default class SidebarManager {
 
         const index = this.slots.length;
         slot.addEventListener('click', () => {
+            // Special handling for rotate: if rotate is selected and we click on another slot, rotate it
+            if (this.selectedIndex >= 0 && this.selectedIndex < this.slots.length) {
+                const currentSlot = this.slots[this.selectedIndex];
+                const currentType = currentSlot.dataset.machineType;
+                if (currentType === 'delete-rotate') {
+                    // Rotate the clicked slot (same effect as scrolling on it) - rotate by 90 degrees
+                    const clickedSlot = this.slots[index];
+                    if (clickedSlot && index !== this.selectedIndex) {
+                        // Rotate clockwise (90 degrees)
+                        const delta = 90;
+                        let anim = parseInt(clickedSlot.dataset.animRot ?? '0', 10) || 0;
+                        anim = anim + delta;
+                        clickedSlot.dataset.animRot = String(anim);
+                        const slotIcon = clickedSlot.querySelector('canvas.machine-icon');
+                        if (slotIcon) {
+                            slotIcon.style.setProperty('--rot-anim', `${anim}deg`);
+                        }
+                        const cur = parseInt(clickedSlot.dataset.rot ?? '0', 10) || 0;
+                        const next = (cur + delta + 360) % 360;
+                        clickedSlot.dataset.rot = String(next);
+                        return;
+                    } else if (index === this.selectedIndex) {
+                        // Clicking on delete slot itself should cycle its variants
+                        this._cycleSlotVariant(index);
+                        return;
+                    }
+                }
+            }
+            
+            // Normal slot interaction
             if (this.selectedIndex === index) {
                 this._cycleSlotVariant(index);
             } else {
@@ -312,6 +356,16 @@ export default class SidebarManager {
         if (type === 'delete') {
             const deleteImg = this.assetManager.get('delete');
             if (deleteImg) ctx.drawImage(deleteImg, 0, 0, icon.width, icon.height);
+            return;
+        }
+        if (type === 'delete-rotate') {
+            const rotateImg = this.assetManager.get('rotate');
+            if (rotateImg) ctx.drawImage(rotateImg, 0, 0, icon.width, icon.height);
+            return;
+        }
+        if (type === 'delete-select') {
+            const selectImg = this.assetManager.get('select');
+            if (selectImg) ctx.drawImage(selectImg, 0, 0, icon.width, icon.height);
             return;
         }
         const img = this.assetManager.get('machines-image');
@@ -337,12 +391,21 @@ export default class SidebarManager {
     }
 
     _drawIconFrame(icon, type, nowMs) {
-        console.log(`_drawIconFrame: type=${type}, nowMs=${nowMs}`);
         const ctx = icon.getContext('2d');
         ctx.clearRect(0, 0, icon.width, icon.height);
         if (type === 'delete') {
             const deleteImg = this.assetManager.get('delete');
             if (deleteImg) ctx.drawImage(deleteImg, 0, 0, icon.width, icon.height);
+            return;
+        }
+        if (type === 'delete-rotate') {
+            const rotateImg = this.assetManager.get('rotate');
+            if (rotateImg) ctx.drawImage(rotateImg, 0, 0, icon.width, icon.height);
+            return;
+        }
+        if (type === 'delete-select') {
+            const selectImg = this.assetManager.get('select');
+            if (selectImg) ctx.drawImage(selectImg, 0, 0, icon.width, icon.height);
             return;
         }
         const img = this.assetManager.get('machines-image');
@@ -381,6 +444,8 @@ export default class SidebarManager {
 
     _getRemainingCount(type) {
         if (!type) return 0;
+        // Special delete variants (rotate, select) don't have limits
+        if (type === 'delete-rotate' || type === 'delete-select') return 1;
         const allowed = this.initialCounts[type] ?? 0;
         const placed = this._countPlacedOfType(type);
         return (allowed - placed);
@@ -486,27 +551,46 @@ export default class SidebarManager {
     _updateSlotCountDisplay(slot) {
         if (!slot) return;
         const countEl = slot.querySelector('.machine-count');
+        const selectedCountEl = slot.querySelector('.spawner-selected-count');
         const icon = slot.querySelector('canvas.machine-icon');
         const count = this._getSlotRemaining(slot);
-        const isSpawnerSlot = slot.classList.contains('spawner-slot');
+        const selectedColorCount = selectedCountEl
+            ? this._getSpawnerRemaining(this._getSelectedSpawnerColor())
+            : null;
         if (countEl) {
-            if (isSpawnerSlot) {
-                countEl.textContent = '';
-                countEl.style.display = 'none';
-            } else if (slot.dataset.machineType !== 'delete') {
-                countEl.textContent = String(count);
-                countEl.style.display = '';
-            } else {
+            const type = slot.dataset.machineType;
+            if (type === 'delete') {
                 countEl.textContent = '(:';
                 countEl.style.display = '';
+                countEl.style.color = (count <= 0) ? 'red' : 'white';
+            } else if (type === 'delete-rotate') {
+                countEl.textContent = '↻';
+                countEl.style.display = '';
+                countEl.style.color = 'white';
+            } else if (type === 'delete-select') {
+                countEl.textContent = '✕';
+                countEl.style.display = '';
+                countEl.style.color = 'white';
+            } else {
+                countEl.textContent = String(count);
+                countEl.style.display = '';
+                countEl.style.color = (count <= 0) ? 'red' : 'white';
             }
-            countEl.style.color = (count <= 0) ? 'red' : 'white';
         }
+        if (selectedCountEl) {
+            selectedCountEl.textContent = String(selectedColorCount);
+            selectedCountEl.style.color = (selectedColorCount <= 0) ? 'red' : 'white';
+        }
+        const type = slot.dataset.machineType;
+        const isSpecialAction = (type === 'delete-rotate' || type === 'delete-select');
         if (icon) {
-            if (count <= 0) icon.style.filter = 'grayscale(100%)';
-            else icon.style.filter = '';
+            if (!isSpecialAction && (count <= 0 || (selectedColorCount !== null && selectedColorCount <= 0))) {
+                icon.style.filter = 'grayscale(100%)';
+            } else {
+                icon.style.filter = '';
+            }
         }
-        if (count <= 0) slot.classList.add('depleted');
+        if (!isSpecialAction && count <= 0) slot.classList.add('depleted');
         else slot.classList.remove('depleted');
         const sel = this.slots[this.selectedIndex];
         if (sel === slot) {
@@ -747,6 +831,75 @@ export default class SidebarManager {
             this.input.block(3);
         }, ["paste"], 10);
 
+        // Initialize drag tracking
+        this._selectDragStart = null;
+
+        // Press handler for single-tap rotate and select drag start (higher priority)
+        this.input.addBinding('mouse', 'left', 'press', () => {
+            if (!this.factoryManager) return;
+            if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) return;
+            const slot = this.slots[this.selectedIndex];
+            const type = slot.dataset.machineType;
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            if (!type) return;
+
+            // Handle rotate
+            if (type === 'delete-rotate') {
+                // Check if there are selected cells - rotate all selected cells
+                if (this.factoryManager.selectedCells && this.factoryManager.selectedCells.size > 0) {
+                    console.log('Rotating', this.factoryManager.selectedCells.size, 'selected cells');
+                    for (const cellKey of this.factoryManager.selectedCells) {
+                        const [x, y] = cellKey.split(',').map(Number);
+                        const machine = this.factoryManager.getMachine(x, y);
+                        if (machine) {
+                            const currentRot = machine.data?.rot || 0;
+                            const newRot = (currentRot + 90) % 360;
+                            this.factoryManager.setMachineProperty(x, y, 'rot', newRot);
+                            if (typeof machine.rotate === 'function') {
+                                try { machine.rotate(90); } catch (e) { }
+                            }
+                        }
+                    }
+                } else if (gridX >= 0 && gridY >= 0) {
+                    // Rotate single cell at cursor
+                    const machine = this.factoryManager.getMachine(gridX, gridY);
+                    if (machine) {
+                        const currentRot = machine.data?.rot || 0;
+                        const newRot = (currentRot + 90) % 360;
+                        this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
+                        if (typeof machine.rotate === 'function') {
+                            try { machine.rotate(90); } catch (e) { }
+                        }
+                    }
+                }
+                this.input.block(3);
+                return;
+            }
+
+            // Handle select drag start
+            if (type === 'delete-select') {
+                if (gridX < 0 || gridY < 0) return;
+                const cellKey = `${gridX},${gridY}`;
+                const isStartSelected = this.factoryManager.selectedCells && this.factoryManager.selectedCells.has(cellKey);
+                console.log('Select drag starting at', gridX, gridY, 'isStartSelected:', isStartSelected);
+                this._selectDragStart = {
+                    startX: gridX,
+                    startY: gridY,
+                    isStartSelected: isStartSelected,
+                    startTime: performance.now(),
+                    lastMinX: gridX,
+                    lastMaxX: gridX,
+                    lastMinY: gridY,
+                    lastMaxY: gridY
+                };
+                this.input.block(3);
+                return;
+            }
+        }, ["rotate-select-action"], 3);
+
+        // Held binding for placement and delete (but not for rotate or select variants)
         this.input.addBinding('mouse', 'left', 'held', () => {
             if (!this.factoryManager) return;
             // when shift select is active, do not place while holding left
@@ -758,6 +911,10 @@ export default class SidebarManager {
             const gridX = Math.floor(pos.x / window.innerHeight * 9);
             const gridY = Math.floor(pos.y / window.innerHeight * 9);
             if (!type) return;
+            
+            // Skip rotate and select variants (they use different bindings)
+            if (type === 'delete-rotate' || type === 'delete-select') return;
+            
             if (type === 'delete') {
                 if (this.factoryManager.removeMachine(gridX, gridY)) {
                     const size = window.innerHeight / 9;
@@ -788,8 +945,15 @@ export default class SidebarManager {
             }
         }, ["world-edit"], 1);
 
+        // Double-tap handler (lower priority than rotate/select)
         this.input.addBinding('mouse', 'left', 'press', () => {
             if (!this.factoryManager) return;
+            // Skip if rotate or select is active
+            if (this.selectedIndex >= 0 && this.selectedIndex < this.slots.length) {
+                const slot = this.slots[this.selectedIndex];
+                const type = slot.dataset.machineType;
+                if (type === 'delete-rotate' || type === 'delete-select') return;
+            }
             const pos = this.input.getPos();
             const gridX = Math.floor(pos.x / window.innerHeight * 9);
             const gridY = Math.floor(pos.y / window.innerHeight * 9);
@@ -816,6 +980,124 @@ export default class SidebarManager {
                 this._lastTap.y = gridY;
             }
         }, [], 1);
+
+        // Drag handler for select variant: select/deselect individual tiles as you drag
+        this.input.addBinding('mouse', 'left', 'held', () => {
+            if (!this._selectDragStart) return;
+            if (!this.factoryManager) return;
+            if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) return;
+            const slot = this.slots[this.selectedIndex];
+            const type = slot.dataset.machineType;
+            if (type !== 'delete-select') return;
+            
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            
+            // Get or create the cell key
+            const cellKey = `${gridX},${gridY}`;
+            
+            // Skip if this is a cell we've already processed in this drag
+            if (this._selectDragStart.processedCells && this._selectDragStart.processedCells.has(cellKey)) {
+                return;
+            }
+            
+            // Ensure tracked cells set exists
+            if (!this._selectDragStart.processedCells) {
+                this._selectDragStart.processedCells = new Set();
+            }
+            this._selectDragStart.processedCells.add(cellKey);
+            
+            // Initialize selected cells if needed
+            if (!this.factoryManager.selectedCells) {
+                this.factoryManager.selectedCells = new Set();
+            }
+            
+            // Only operate on cells that have machines
+            if (!this.factoryManager.getMachine(gridX, gridY)) {
+                return;
+            }
+            
+            // Based on initial state, select or deselect this tile
+            if (this._selectDragStart.isStartSelected) {
+                // Started on selected, so deselect
+                this.factoryManager.selectedCells.delete(cellKey);
+            } else {
+                // Started on unselected, so select
+                this.factoryManager.selectedCells.add(cellKey);
+            }
+            console.log('Selected cells now:', Array.from(this.factoryManager.selectedCells || []));
+        }, ["rotate-select-action"], 3);
+
+        // Drag handler for select variant: accumulate cells and toggle state
+        this.input.addBinding('mouse', 'left', 'move', () => {
+            if (!this._selectDragStart) {
+                console.log('Select drag: no drag start');
+                return;
+            }
+            if (!this.factoryManager) {
+                console.log('Select drag: no factory manager');
+                return;
+            }
+            if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) {
+                console.log('Select drag: invalid selected index');
+                return;
+            }
+            const slot = this.slots[this.selectedIndex];
+            const type = slot.dataset.machineType;
+            console.log('Select drag: type is', type);
+            if (type !== 'delete-select') {
+                console.log('Select drag: not delete-select, returning');
+                return;
+            }
+            
+            const pos = this.input.getPos();
+            const gridX = Math.floor(pos.x / window.innerHeight * 9);
+            const gridY = Math.floor(pos.y / window.innerHeight * 9);
+            console.log('Select drag: from', this._selectDragStart.startX, this._selectDragStart.startY, 'to', gridX, gridY);
+            
+            // Calculate bounding box from start to current
+            const minX = Math.min(this._selectDragStart.startX, gridX);
+            const maxX = Math.max(this._selectDragStart.startX, gridX);
+            const minY = Math.min(this._selectDragStart.startY, gridY);
+            const maxY = Math.max(this._selectDragStart.startY, gridY);
+            
+            // Apply select/deselect based on initial state
+            if (!this.factoryManager.selectedCells) {
+                this.factoryManager.selectedCells = new Set();
+            }
+            
+            if (this._selectDragStart.isStartSelected) {
+                // Remove (deselect) all cells in the drag box
+                console.log('Deselecting cells');
+                for (let x = minX; x <= maxX; x++) {
+                    for (let y = minY; y <= maxY; y++) {
+                        const cellKey = `${x},${y}`;
+                        this.factoryManager.selectedCells.delete(cellKey);
+                    }
+                }
+            } else {
+                // Add (select) all cells in the drag box that have machines
+                console.log('Selecting cells');
+                for (let x = minX; x <= maxX; x++) {
+                    for (let y = minY; y <= maxY; y++) {
+                        if (this.factoryManager.getMachine(x, y)) {
+                            const cellKey = `${x},${y}`;
+                            this.factoryManager.selectedCells.add(cellKey);
+                        }
+                    }
+                }
+            }
+            console.log('Selected cells now:', Array.from(this.factoryManager.selectedCells || []));
+        }, ["rotate-select-action"], 3);
+
+        // Release handler for select variant: finalize drag
+        this.input.addBinding('mouse', 'left', 'release', () => {
+            if (this._selectDragStart) {
+                this._selectDragStart = null;
+                this.input.unblock();
+            }
+        }, ["rotate-select-action"], 3);
 
         this.input.addBinding('mouse', 'middle', 'held', () => {
             if (!this.factoryManager) return;

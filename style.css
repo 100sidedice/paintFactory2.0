@@ -32,8 +32,8 @@ canvas {
 .spawner-panel-toggle {
     position: fixed;
     top: 0;
-    left: calc(14.3vh - 8px);
-    width: 22px;
+    left: 14.3vh;
+    width: 4vh;
     height: 13vh;
     padding: 0;
     border: 3px solid #00000066;
@@ -49,13 +49,16 @@ canvas {
     align-items: center;
     justify-content: center;
 }
+.spawner-panel-toggle:hover {
+    background: linear-gradient(to right, #2a2a2aff, #3a3a3aff);
+}
 
 .spawner-panel {
     position: fixed;
     top: 2.5vh;
-    left: calc(14.3vh + 14px);
+    left: 18.3vh;
     width: min(56vh, calc(100vw - 18vh));
-    max-height: 16vh;
+    height: 14.5vh;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 10px;
@@ -279,8 +282,18 @@ canvas {
     text-shadow: 0 0 2px #000000CC;
 }
 
-#machine_sidebar .spawner-slot .machine-count {
-    display: none;
+#machine_sidebar .spawner-selected-count {
+    position: absolute;
+    top: 4px;
+    left: auto;
+    right: 6px;
+    text-align: right;
+    font-size: 20px;
+    font-weight: 700;
+    color: #FFFFFFFF;
+    z-index: 20;
+    pointer-events: none;
+    text-shadow: 0 0 2px #000000CC;
 }
 
 /* Debug overlay container */

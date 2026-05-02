@@ -36,6 +36,18 @@
         "type": "image",
         "extra": ""
     },
+    "rotate": {
+        "path": "Assets/rotate.png",
+        "name": "rotate",
+        "type": "image",
+        "extra": ""
+    },
+    "select": {
+        "path": "Assets/select.png",
+        "name": "select",
+        "type": "image",
+        "extra": ""
+    },
     "Levels":{
         "path": "Data/Levels",
         "name": "Levels",
