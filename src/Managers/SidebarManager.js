@@ -564,11 +564,11 @@ export default class SidebarManager {
                 countEl.style.display = '';
                 countEl.style.color = (count <= 0) ? 'red' : 'white';
             } else if (type === 'delete-rotate') {
-                countEl.textContent = '↻';
+                countEl.textContent = 'O:';
                 countEl.style.display = '';
                 countEl.style.color = 'white';
             } else if (type === 'delete-select') {
-                countEl.textContent = '✕';
+                countEl.textContent = '/:';
                 countEl.style.display = '';
                 countEl.style.color = 'white';
             } else {
