@@ -95,7 +95,7 @@ export default class mixer extends MachineBase {
             applyMovement(true, item, speed, this.data.rot);
             return;
         }
-        if (isItemColliding(this.data.x, this.data.y, item, size, colDown, this.data.rot) && !this.splitting) {
+        if (isItemColliding(this.data.x, this.data.y, item, size, colDown, this.data.rot)) {
             console.log('Starting split for item', item);
             console.log('Down collider:', colDown);
             this.splitTime = this.splitTimeMax;

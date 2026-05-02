@@ -527,9 +527,30 @@ export default class FactoryManager {
     removeMachine(x,y) {
         const removed = this.grid[x] && this.grid[x][y];
         if (!removed) return null;
+        const type = removed.name || (removed.data && removed.data.type) || null;
+        // If a SidebarManager is present, only allow deletion of this machine
+        // type when that type exists in the sidebar slots. This prevents
+        // players from deleting machine types that aren't available in the
+        // current level's sidebar (so placed machines can be protected).
+        try {
+            const sidebar = this.levelManager?.sidebarManager;
+            if (sidebar && Array.isArray(sidebar.slots)) {
+                let found = false;
+                for (const s of sidebar.slots) {
+                    try {
+                        const variants = JSON.parse(s.dataset.variants ?? '[]');
+                        if (Array.isArray(variants) && variants.indexOf(type) !== -1) { found = true; break; }
+                    } catch (e) { /* ignore parse errors per-slot */ }
+                }
+                if (!found) return null;
+            }
+        } catch (e) {
+            // If anything goes wrong inspecting the sidebar, fall back to
+            // allowing removal so we don't lock out normal editor behaviour.
+        }
+
         this.grid[x][y] = null;
         this.generateQueue();
-        const type = removed.name || (removed.data && removed.data.type) || null;
         const rot = (removed.data && removed.data.rot) || 0;
         return { type, rot };
     }
