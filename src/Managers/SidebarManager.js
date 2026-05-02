@@ -18,6 +18,7 @@ export default class SidebarManager {
         this.lastRotateTarget = null; // 'slot' | 'machine' | 'selection'
         this._lastTap = { time: 0, x: -1, y: -1 };
         this._iconAnimReq = null;
+        this._pasteModeSlot = null;
         this.spawnerColor = 0x1C1C1CFF;
         this.spawnerPanelOpen = false;
         this.spawnerPanel = null;
@@ -68,6 +69,43 @@ export default class SidebarManager {
         if (this.spawnerPanel) {
             this.spawnerPanel.style.display = '';
             this.spawnerPanel.style.top = `${slotRect.top}px`;
+        }
+    }
+
+    _setPasteMode(slot, enabled) {
+        if (!slot) return;
+        const label = slot.querySelector('.paste-status');
+        const icon = slot.querySelector('canvas.machine-icon');
+        if (enabled) {
+            if (this._pasteModeSlot && this._pasteModeSlot !== slot) {
+                const oldLabel = this._pasteModeSlot.querySelector('.paste-status');
+                const oldIcon = this._pasteModeSlot.querySelector('canvas.machine-icon');
+                this._pasteModeSlot.classList.remove('paste-mode');
+                if (oldLabel) oldLabel.classList.remove('visible');
+                this._pasteModeSlot.dataset.pasteArmed = '0';
+                if (oldIcon) this._drawIcon(oldIcon, 'delete-select');
+            }
+            this._pasteModeSlot = slot;
+            slot.classList.add('paste-mode');
+            slot.dataset.pasteArmed = '1';
+            if (label) label.classList.add('visible');
+            if (icon) this._drawIcon(icon, 'delete-rotate');
+        } else {
+            slot.classList.remove('paste-mode');
+            slot.dataset.pasteArmed = '0';
+            if (label) label.classList.remove('visible');
+            if (icon) this._drawIcon(icon, 'delete-select');
+            if (this._pasteModeSlot === slot) this._pasteModeSlot = null;
+        }
+    }
+
+    _clearPasteMode() {
+        if (this._pasteModeSlot) {
+            this._setPasteMode(this._pasteModeSlot, false);
+        }
+        if (this.factoryManager) {
+            this.factoryManager.pasting = false;
+            this.factoryManager.pasteTarget = null;
         }
     }
 
@@ -245,6 +283,51 @@ export default class SidebarManager {
         slot.dataset.animRot = '0';
         icon.style.setProperty('--rot-anim', '0deg');
 
+        const pasteLabel = document.createElement('div');
+        pasteLabel.className = 'paste-status';
+        pasteLabel.textContent = 'Pasting';
+        slot.appendChild(pasteLabel);
+
+        let holdShakeTimer = null;
+        let holdActivated = false;
+        const stopHoldShake = () => {
+            if (holdShakeTimer !== null) {
+                clearTimeout(holdShakeTimer);
+                holdShakeTimer = null;
+            }
+            slot.classList.remove('hold-shake');
+            if (!holdActivated) pasteLabel.classList.remove('visible');
+        };
+
+        slot.addEventListener('pointerdown', (e) => {
+            if (slot.dataset.machineType !== 'delete-select') return;
+            if (e.button !== undefined && e.button !== 0) return;
+            holdActivated = false;
+            stopHoldShake();
+            holdShakeTimer = window.setTimeout(() => {
+                if (slot.dataset.machineType !== 'delete-select') return;
+                if (!this.factoryManager || !this.factoryManager.clipboard || !Array.isArray(this.factoryManager.clipboard.machines) || this.factoryManager.clipboard.machines.length === 0) return;
+                holdActivated = true;
+                slot.classList.add('hold-shake');
+                holdShakeTimer = null;
+                slot.classList.remove('hold-shake');
+                this._setPasteMode(slot, true);
+                if (this.factoryManager) {
+                    this.factoryManager.pasting = true;
+                    this.factoryManager.pasteTarget = null;
+                }
+                if (this.particleManager) {
+                    const rect = slot.getBoundingClientRect();
+                    const cx = rect.left + rect.width / 2;
+                    const cy = rect.top + rect.height / 2;
+                    this.particleManager.spawnAt(cx, cy, { count: 16, colors: [0xFFFFFFFF, 0x00FFFFFF, 0xA0A0FFFF], size: 4, speed: 220, life: 500 });
+                }
+            }, 500);
+            window.addEventListener('pointerup', stopHoldShake, { once: true });
+            window.addEventListener('pointercancel', stopHoldShake, { once: true });
+            window.addEventListener('pointerleave', stopHoldShake, { once: true });
+        });
+
         this._drawIcon(icon, variants[0]);
 
         if (variants.length > 1) {
@@ -308,6 +391,12 @@ export default class SidebarManager {
 
         const index = this.slots.length;
         slot.addEventListener('click', () => {
+            if (slot.dataset.pasteArmed === '1') {
+                if (this.factoryManager && this.factoryManager.pasting) {
+                    this.factoryManager.rotateClipboard(true);
+                }
+                return;
+            }
             // Special handling for rotate: if rotate is selected and we click on another slot, rotate it
             if (this.selectedIndex >= 0 && this.selectedIndex < this.slots.length) {
                 const currentSlot = this.slots[this.selectedIndex];
@@ -634,7 +723,8 @@ export default class SidebarManager {
                 const icon = slot.querySelector('canvas.machine-icon');
                 if (!icon) continue;
                 const type = slot.dataset.machineType;
-                this._drawIconFrame(icon, type, ts);
+                const drawType = (type === 'delete-select' && slot.dataset.pasteArmed === '1') ? 'delete-rotate' : type;
+                this._drawIconFrame(icon, drawType, ts);
                 this._updateSlotCountDisplay(slot);
                 const indicator = slot.querySelector('.variant-indicator');
                 if (indicator) {
@@ -806,6 +896,7 @@ export default class SidebarManager {
         // v = paste selection
         this.input.addBinding('keyboard', 'KeyV', 'press', () => {
             this.factoryManager.pasting = true;
+            this.factoryManager.pasteTarget = null;
         }, ["select"], 1);
 
         // While pasting: left = confirm, right = cancel. High priority to avoid other handlers.
@@ -815,9 +906,17 @@ export default class SidebarManager {
             const pos = this.input.getPos();
             const gridX = Math.floor(pos.x / window.innerHeight * 9);
             const gridY = Math.floor(pos.y / window.innerHeight * 9);
-            // attempt paste
+            const pending = this.factoryManager.pasteTarget;
+            if (!pending || pending.x !== gridX || pending.y !== gridY) {
+                this.factoryManager.pasteTarget = { x: gridX, y: gridY };
+                this.input.block(3);
+                return;
+            }
+            // attempt paste on the second click to confirm the locked cell
             const res = this.factoryManager.pasteAt(gridX, gridY);
-            this.factoryManager.pasting = false;
+            this._clearPasteMode();
+            const selectSlot = this.slots.find((slot) => slot.dataset.machineType === 'delete-select');
+            if (selectSlot) this._setPasteMode(selectSlot, false);
             // block until mouse release to prevent other place handlers
             this.input.block(3);
         }, ["paste"], 10, ()=>{
@@ -827,7 +926,9 @@ export default class SidebarManager {
         this.input.addBinding('mouse', 'right', 'press', () => {
             if (!this.factoryManager) return;
             if (!this.factoryManager.pasting) return;
-            this.factoryManager.pasting = false;
+            this._clearPasteMode();
+            const selectSlot = this.slots.find((slot) => slot.dataset.machineType === 'delete-select');
+            if (selectSlot) this._setPasteMode(selectSlot, false);
             this.input.block(3);
         }, ["paste"], 10);
 
@@ -916,6 +1017,13 @@ export default class SidebarManager {
             if (type === 'delete-rotate' || type === 'delete-select') return;
             
             if (type === 'delete') {
+                const cellKey = `${gridX},${gridY}`;
+                if (this.factoryManager.selectedCells && this.factoryManager.selectedCells.has(cellKey)) {
+                    this.factoryManager.cutSelection(this.input.getPos());
+                    this.factoryManager.clearSelection();
+                    this._refreshAllSlots();
+                    return;
+                }
                 if (this.factoryManager.removeMachine(gridX, gridY)) {
                     const size = window.innerHeight / 9;
                     const cx = (gridX + 1/2) * size;
@@ -1025,68 +1133,6 @@ export default class SidebarManager {
             } else {
                 // Started on unselected, so select
                 this.factoryManager.selectedCells.add(cellKey);
-            }
-            console.log('Selected cells now:', Array.from(this.factoryManager.selectedCells || []));
-        }, ["rotate-select-action"], 3);
-
-        // Drag handler for select variant: accumulate cells and toggle state
-        this.input.addBinding('mouse', 'left', 'move', () => {
-            if (!this._selectDragStart) {
-                console.log('Select drag: no drag start');
-                return;
-            }
-            if (!this.factoryManager) {
-                console.log('Select drag: no factory manager');
-                return;
-            }
-            if (this.selectedIndex < 0 || this.selectedIndex >= this.slots.length) {
-                console.log('Select drag: invalid selected index');
-                return;
-            }
-            const slot = this.slots[this.selectedIndex];
-            const type = slot.dataset.machineType;
-            console.log('Select drag: type is', type);
-            if (type !== 'delete-select') {
-                console.log('Select drag: not delete-select, returning');
-                return;
-            }
-            
-            const pos = this.input.getPos();
-            const gridX = Math.floor(pos.x / window.innerHeight * 9);
-            const gridY = Math.floor(pos.y / window.innerHeight * 9);
-            console.log('Select drag: from', this._selectDragStart.startX, this._selectDragStart.startY, 'to', gridX, gridY);
-            
-            // Calculate bounding box from start to current
-            const minX = Math.min(this._selectDragStart.startX, gridX);
-            const maxX = Math.max(this._selectDragStart.startX, gridX);
-            const minY = Math.min(this._selectDragStart.startY, gridY);
-            const maxY = Math.max(this._selectDragStart.startY, gridY);
-            
-            // Apply select/deselect based on initial state
-            if (!this.factoryManager.selectedCells) {
-                this.factoryManager.selectedCells = new Set();
-            }
-            
-            if (this._selectDragStart.isStartSelected) {
-                // Remove (deselect) all cells in the drag box
-                console.log('Deselecting cells');
-                for (let x = minX; x <= maxX; x++) {
-                    for (let y = minY; y <= maxY; y++) {
-                        const cellKey = `${x},${y}`;
-                        this.factoryManager.selectedCells.delete(cellKey);
-                    }
-                }
-            } else {
-                // Add (select) all cells in the drag box that have machines
-                console.log('Selecting cells');
-                for (let x = minX; x <= maxX; x++) {
-                    for (let y = minY; y <= maxY; y++) {
-                        if (this.factoryManager.getMachine(x, y)) {
-                            const cellKey = `${x},${y}`;
-                            this.factoryManager.selectedCells.add(cellKey);
-                        }
-                    }
-                }
             }
             console.log('Selected cells now:', Array.from(this.factoryManager.selectedCells || []));
         }, ["rotate-select-action"], 3);

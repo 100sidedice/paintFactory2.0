@@ -186,6 +186,51 @@ canvas {
     border-color: #666600FF;
     cursor: grabbing;
 }
+
+#machine_sidebar .machine.hold-shake {
+    animation: sidebar-hold-shake 0.35s ease-in-out infinite;
+    transform-origin: center;
+    will-change: transform;
+}
+
+#machine_sidebar .machine.paste-mode {
+    border-color: #00FFFFFF;
+}
+
+#machine_sidebar .paste-status {
+    position: absolute;
+    left: 50%;
+    top: 0vh;
+    transform: translateX(-50%) translateY(3px);
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #111111E6;
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    color: #FFFFFFFF;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    pointer-events: none;
+    z-index: 25;
+}
+
+#machine_sidebar .paste-status.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+@keyframes sidebar-hold-shake {
+    0% { transform: translateX(0) rotate(0deg); }
+    20% { transform: translateX(-1px) rotate(-1deg); }
+    40% { transform: translateX(1px) rotate(1deg); }
+    60% { transform: translateX(-1px) rotate(0.5deg); }
+    80% { transform: translateX(1px) rotate(-0.5deg); }
+    100% { transform: translateX(0) rotate(0deg); }
+}
+
 .machine-icon:hover {
     transform: scale(1.2);
 }

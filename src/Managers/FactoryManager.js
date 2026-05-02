@@ -26,6 +26,7 @@ export default class FactoryManager {
         this.clipboard = null; // for copy/paste functionality, can store { type, data } or similar structure
         this.paused = false;
         this.clipPos = { x: 0, y: 0 }; // for tracking mouse position clipboard origin
+        this.pasteTarget = null;
     }
     generateGrid(x=20, y=16) {
         this.grid = [];
@@ -86,7 +87,13 @@ export default class FactoryManager {
         }
         this.drawSelected(ctx);
         if(this.clipboard && this.pasting) {
-            this.pastePreview(ctx, this.input.getPos());
+            const target = this.pasteTarget;
+            if (target && Number.isFinite(target.x) && Number.isFinite(target.y)) {
+                const size = window.innerHeight / 9;
+                this.pastePreview(ctx, { x: target.x * size + size / 2, y: target.y * size + size / 2 });
+            } else {
+                this.pastePreview(ctx, this.input.getPos());
+            }
         }
     }
     drawSelected(ctx) {
@@ -229,10 +236,13 @@ export default class FactoryManager {
             // Draw a semi-transparent preview of the machine at (x,y) with rotation m.rot
             const img = this.AssetManager.get('machines-image');
             if (!img) continue;
-            const row = (this.DataManager.getData(joinDots('machineData', m.type))?.texture.row) || 0;
+            const data = this.DataManager.getData(joinDots('machineData', m.type)) ?? {};
+            const row = (data.texture && data.texture.row) || 0;
+            const fps = (data.texture && data.texture.fps) ? data.texture.fps : 8;
             const tw = 16; const th = 16;
-            let cols = Math.max(1, Math.floor(img.width / tw));
-            const sx = 0; // for preview, we can just use the first frame of animation
+            const cols = Math.max(1, Math.floor(img.width / tw));
+            const frame = Math.floor((performance.now() * fps) / 1000) % cols;
+            const sx = frame * tw;
             const sy = row * th;
             ctx.save();
             ctx.translate(x, y);
