@@ -21,6 +21,8 @@
     },
     "Machines":[
         ["delete", 1],
+        ["delete-rotate", 1],
+        ["delete-select", 1],
         ["spawner", 9999],
         ["conveyor", 9999],
         ["conveyor-left", 9999],

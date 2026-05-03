@@ -25,9 +25,13 @@ export default class Input {
     _isOverUI(clientX, clientY) {
         const el = document.elementFromPoint(clientX, clientY);
         if (!el) return false;
+  
         // treat these selectors as UI - add more selectors if you have other UI containers
-        if (el.closest('.ui')) return true;
-        return false;
+        const uiEl = el.closest('.ui');
+        if (!uiEl) return false;
+        // Element must actually be visible (checks visibility and opacity)
+        if (!uiEl.checkVisibility({ visibilityProperty: true, opacityProperty: true })) return false;
+        return true;
     }
 
     // addBinding(..., classes) - optional `classes` can be a string or array

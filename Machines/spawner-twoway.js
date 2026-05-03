@@ -17,25 +17,39 @@ export default class spawner extends MachineBase {
         this._acc += delta;
         if (this._acc >= this.spawnInterval) {
             this._acc -= this.spawnInterval;
-            // spawn item at machine location
-            // enforce global max item limit from config
-            const cfg = this.manager?.DataManager?.config || {};
-            const max = cfg.maxItems || 200;
-            const current = Object.values(this.manager.items || {}).filter(Boolean).length;
-            if (current >= max) return;
-            const x = this.data.x ?? 0;
-            const y = this.data.y ?? 0;
-            const id = `item_${Math.random().toString(36).substr(2,9)}_${Date.now()}`;
-            const item = new Item(id, x + 0.5, y + 0.5, this.color, this.manager);
-            this.manager.items[id] = item;
+            this.spawnItem(-1,0);
+            this.spawnItem(1,0);
         }
     }
+    spawnItem(offsetX, offsetY){
+        const cfg = this.manager?.DataManager?.config || {};
+        const max = parseInt(cfg.maxItems, 10) || 200;
+        const current = Object.values(this.manager.items || {}).filter(Boolean).length;
+        if (current >= max) return;
+        
+        // Rotate offset vector based on machine rotation
+        const rot = (this.data.rot || 0) * Math.PI / 180; // convert degrees to radians
+        const rotX = offsetX * Math.cos(rot) - offsetY * Math.sin(rot);
+        const rotY = offsetX * Math.sin(rot) + offsetY * Math.cos(rot);
+        
+        const x = this.data.x;
+        const y = this.data.y;
+        const id = `item_${Math.random().toString(36).substr(2,9)}_${Date.now()}`;
+        const item = new Item(id, x + 0.5 + rotX/16, y + 0.5 + rotY/16, this.color, this.manager);
+        this.manager.items[id] = item;
+    }
     onItemCollision(item, size) {
-        const collision = this.data.collision || { top:0,right:0,bottom:0,left:0 };
-        const colliding = isItemColliding(this.data.x ?? 0, this.data.y ?? 0, item, size, collision, this.data.rot);
-        if (colliding) {
+        const collisionA = this.data.collisionA;
+        const collidingA = isItemColliding(this.data.x, this.data.y, item, size, collisionA, this.data.rot);
+        if (collidingA) {
             const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
-            applyMovement(true, item, speed, this.data.rot);
+            applyMovement(true, item, speed, this.data.rot-90);
+        }
+        const collisionB = this.data.collisionB;
+        const collidingB = isItemColliding(this.data.x, this.data.y, item, size, collisionB, this.data.rot);
+        if (collidingB) {
+            const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
+            applyMovement(true, item, speed, this.data.rot+90);
         }
     }
     draw(ctx, x, y, size=16) {

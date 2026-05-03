@@ -27,6 +27,21 @@ export default class FactoryManager {
         this.paused = false;
         this.clipPos = { x: 0, y: 0 }; // for tracking mouse position clipboard origin
         this.pasteTarget = null;
+        this._copyFailFlashUntil = 0;
+        this._copyFailFlashCells = new Set();
+
+        // Cached portal machine index; rebuilt only when machine placement/removal regenerates the grid.
+        this._portalMachineCacheDirty = true;
+        this._portalMachineCache = { inputs: [], outputs: [] };
+        window.addEventListener('resize', () => {
+            const oldGrid = this.grid;
+            this.grid = this.generateGrid();
+            for (let i = 0; i < Math.min(oldGrid.length, this.grid.length); i++) {
+                for (let j = 0; j < Math.min(oldGrid[i].length, this.grid[i].length); j++) {
+                    this.grid[i][j] = oldGrid[i][j];
+                }
+            }
+        });
     }
     generateGrid(
         x = Math.max(1, Math.ceil((window.innerWidth || 1) / ((window.innerHeight || 1) / 9))),
@@ -39,9 +54,33 @@ export default class FactoryManager {
                 this.grid[i][j] = null;
             }
         }
+        this._portalMachineCacheDirty = true;
         return this.grid;
         // display by column, then row, so we can do grid[x][y] instead of grid[y][x] for simplicity
     }
+
+    // Returns cached portal machine arrays: { inputs: portal-in[], outputs: portal[] }
+    // Cache is invalidated when grid structure changes (placement/removal/reset).
+    getPortalMachineCache() {
+        if (!this._portalMachineCacheDirty) return this._portalMachineCache;
+
+        const inputs = [];
+        const outputs = [];
+        for (let x = 0; x < this.grid.length; x++) {
+            const col = this.grid[x] || [];
+            for (let y = 0; y < col.length; y++) {
+                const machine = col[y];
+                if (!machine) continue;
+                if (machine.name === 'portal-in') inputs.push(machine);
+                else if (machine.name === 'portal') outputs.push(machine);
+            }
+        }
+
+        this._portalMachineCache = { inputs, outputs };
+        this._portalMachineCacheDirty = false;
+        return this._portalMachineCache;
+    }
+
     generateQueue() {
         const transformQueue = [[],[],[],[]]
         // Loop 1: Sort machines into transform queues based on their rotation
@@ -85,6 +124,10 @@ export default class FactoryManager {
         // Draw items (entities) after machines, using world->screen mapping
         for (const id in this.items) {
             const item = this.items[id];
+            if(!item) {
+                delete this.items[id]; // cleanup invalid item reference
+                continue;
+            }
             // item coordinates are in grid space where (x,y) => pixel = x*size, y*size
             item.draw(ctx, size);
         }
@@ -101,11 +144,14 @@ export default class FactoryManager {
     }
     drawSelected(ctx) {
         const size = window.innerHeight / 9;
+        const now = performance.now();
+        const copyFailActive = now < this._copyFailFlashUntil;
         ctx.save();
         ctx.strokeStyle = 'cyan';
         ctx.lineWidth = size/32;
         for (const cell of this.selectedCells) {
-            if (this.copiedCells && this.copiedCells.has(cell)) ctx.strokeStyle = 'lime';
+            if (copyFailActive && this._copyFailFlashCells && this._copyFailFlashCells.has(cell)) ctx.strokeStyle = '#FF0000FF';
+            else if (this.copiedCells && this.copiedCells.has(cell)) ctx.strokeStyle = 'lime';
             else ctx.strokeStyle = 'cyan';
             const [x, y] = cell.split(',').map(Number);
             ctx.strokeRect(x*size, y*size, size, size);
@@ -134,6 +180,7 @@ export default class FactoryManager {
         }
     }
     clearSelection() {
+        const didClear = this.selectedCells.size > 0;
         // visual feedback: spawn corner particles for each removed cell
         const size = window.innerHeight / 9;
         for (const cell of this.selectedCells) {
@@ -147,23 +194,36 @@ export default class FactoryManager {
         }
         this.selectedCells.clear();
         if (this.copiedCells) this.copiedCells.clear();
+        return didClear;
     }
     copySelection(screenPos) {
         if (this.selectedCells.size === 0) return;
         const selectedMachines = [];
+        const copiedCellKeys = [];
+        const failedCellKeys = [];
         for (const cell of this.selectedCells) {
             const [x, y] = cell.split(',').map(Number);
             const machine = this.getMachine(x, y);
-            if (machine) {
+            if (machine && this.isMachineAvailableInSidebar(machine.name || machine.data?.type)) {
                 const color = (machine.data && machine.data.color !== undefined && machine.data.color !== null) ? machine.data.color : (machine.color !== undefined ? machine.color : null);
                 const acc = (machine._acc !== undefined) ? machine._acc : null;
                 const cnt = (machine._count !== undefined) ? machine._count : null;
                 selectedMachines.push({ x, y, type: machine.name, rot: machine.data.rot, color, _acc: acc, _count: cnt });
+                copiedCellKeys.push(cell);
+            } else if (machine) {
+                failedCellKeys.push(cell);
             }
         }
-        this.clipboard = { machines: selectedMachines };
+        this.clipboard = selectedMachines.length > 0 ? { machines: selectedMachines } : null;
         // mark copied cells so they're rendered green (no blue particle effect here)
-        this.copiedCells = new Set(this.selectedCells);
+        this.copiedCells = new Set(copiedCellKeys);
+        if (failedCellKeys.length > 0) {
+            this._copyFailFlashCells = new Set(failedCellKeys);
+            this._copyFailFlashUntil = performance.now() + 200;
+        } else {
+            this._copyFailFlashCells = new Set();
+            this._copyFailFlashUntil = 0;
+        }
         // set clipboard origin as grid cell coordinates (floor to snap to grid)
         const size = window.innerHeight / 9;
         this.clipPos = { x: Math.floor(screenPos.x / size), y: Math.floor(screenPos.y / size) };
@@ -174,6 +234,11 @@ export default class FactoryManager {
             const [x, y] = cell.split(',').map(Number);
             this.removeMachine(x, y);
         }
+    }
+    _findSidebarSlotForMachineType(type) {
+        const sidebar = this.levelManager?.sidebarManager;
+        if (!sidebar || !Array.isArray(sidebar.slots)) return -1;
+        return sidebar.slots.findIndex(s => s.dataset.machineType === type);
     }
     pastePreview(ctx, screenPos) {
         if (!this.clipboard) return;
@@ -204,21 +269,12 @@ export default class FactoryManager {
             let reason = null;
             // bounds
             if (!this.grid || gridX < 0 || gridY < 0 || gridX >= this.grid.length || gridY >= (this.grid[0]?.length || 0)) { canPlace = false; reason = 'out-of-bounds'; }
+            else if (!this.isMachineAvailableInSidebar(m.type)) { canPlace = false; reason = 'unavailable'; }
             // occupancy
-            else if (this.grid[gridX] && this.grid[gridX][gridY]) { canPlace = false; reason = 'occupied'; }
+            else if (this.grid[gridX] && this.grid[gridX][gridY] && !this.canReplaceMachineAt(gridX, gridY)) { canPlace = false; reason = 'occupied'; }
             // slot/limit checks via LevelManager -> SidebarManager
             else if (Array.isArray(this.levelManager.slots)) {
-                let foundIdx = -1;
-                let slotEl = null;
-                for (let i = 0; i < this.levelManager.slots.length; i++) {
-                    const s = this.levelManager.slots[i];
-                    try {
-                        const variants = JSON.parse(s.dataset.variants ?? '[]');
-                        if (variants && variants.indexOf(m.type) !== -1) { foundIdx = i; slotEl = s; break; }
-                    } catch (e) {
-                        // ignore parse errors
-                    }
-                }
+                const foundIdx = this._findSidebarSlotForMachineType(m.type);
                 if (foundIdx !== -1) {
                     const baseType = (m.type || '').split('-')[0];
                     if (baseType === 'spawner') {
@@ -244,7 +300,9 @@ export default class FactoryManager {
             const fps = (data.texture && data.texture.fps) ? data.texture.fps : 8;
             const tw = 16; const th = 16;
             const cols = Math.max(1, Math.floor(img.width / tw));
-            const frame = Math.floor((performance.now() * fps) / 1000) % cols;
+            const frameCount = Math.max(1, data.texture?.frameCount ?? cols);
+            const frameLimit = Math.min(cols, frameCount);
+            const frame = Math.floor((performance.now() * fps) / 1000) % frameLimit;
             const sx = frame * tw;
             const sy = row * th;
             ctx.save();
@@ -300,16 +358,11 @@ export default class FactoryManager {
             let canPlace = true;
             let reason = null;
             if (tx < 0 || ty < 0 || tx >= w || ty >= h) { canPlace = false; reason = 'out-of-bounds'; }
-            else if (this.grid[tx] && this.grid[tx][ty]) { canPlace = false; reason = 'occupied'; }
+            else if (!this.isMachineAvailableInSidebar(m.type)) { canPlace = false; reason = 'unavailable'; }
+            else if (this.grid[tx] && this.grid[tx][ty] && !this.canReplaceMachineAt(tx, ty)) { canPlace = false; reason = 'occupied'; }
             else if (this.levelManager && Array.isArray(this.levelManager.slots)) {
-                let slotEl = null;
-                let foundIdx = -1;
-                for (let i = 0; i < this.levelManager.slots.length; i++) {
-                    const s = this.levelManager.slots[i];
-                    const variants = JSON.parse(s.dataset.variants ?? '[]');
-                    if (variants && variants.indexOf(m.type) !== -1) { slotEl = s; foundIdx = i; break; }
-                }
-                if (foundIdx !== -1 && slotEl) {
+                const foundIdx = this._findSidebarSlotForMachineType(m.type);
+                if (foundIdx !== -1) {
                     const base = (m.type || '').split('-')[0];
                     if (base === 'spawner') {
                         const colorKey = (m.color !== undefined && m.color !== null) ? m.color : (this.levelManager?.sidebarManager?.spawnerColor ?? null);
@@ -446,6 +499,13 @@ export default class FactoryManager {
         machineClass = machineClass.default;
         let machineData = this.DataManager.getData(joinDots('machineData', type));
         if (!machineData) {console.log(`Machine data for type ${type} not found`); return;}
+
+        const existing = this.getMachine(x, y);
+        if (existing) {
+            if (!this.hasActionSlot('delete') || !this.hasMachineInSlot(existing.name || existing.data?.type)) return null;
+            if (!this.removeMachine(x, y)) return null;
+        }
+
         // Deep-clone machineData so instances don't share the same object
         const machine = new machineClass(type, structuredClone(machineData), this);
         // Normalize rotation to a number (0,90,180,270)
@@ -454,6 +514,7 @@ export default class FactoryManager {
         machine.data.x = x;
         machine.data.y = y;
         this.grid[x][y] = machine;
+        this._portalMachineCacheDirty = true;
         this.generateQueue()
         return machine;
     }
@@ -509,6 +570,8 @@ export default class FactoryManager {
             if (Number.isNaN(x) || Number.isNaN(y)) continue;
             const machine = this.getMachine(x, y);
             if (!machine) continue;
+            const machineType = machine.name || machine.data?.type;
+            if (!this.hasActionSlot('delete-rotate') || !this.hasMachineInSlot(machineType)) continue;
             const cur = parseInt(machine.data?.rot ?? 0, 10) || 0;
             const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
             this.setMachineProperty(x, y, 'rot', newRot);
@@ -524,32 +587,35 @@ export default class FactoryManager {
         if (!machine) return null;
         return machine.data[prop];
     }
+
+    hasActionSlot(action) {
+        const sidebar = this.levelManager?.sidebarManager;
+        return sidebar?.isActionAvailable(action) ?? false;
+    }
+
+    hasMachineInSlot(type) {
+        const sidebar = this.levelManager?.sidebarManager;
+        return sidebar?.isMachineAvailableInLevel(type) ?? false;
+    }
+
+    canReplaceMachineAt(x, y) {
+        const existing = this.getMachine(x, y);
+        if (!existing) return true;
+        return this.hasActionSlot('delete') && this.hasMachineInSlot(existing.name || existing.data?.type);
+    }
+
+    isMachineAvailableInSidebar(type) {
+        return this.hasMachineInSlot(type);
+    }
+
     removeMachine(x,y) {
         const removed = this.grid[x] && this.grid[x][y];
         if (!removed) return null;
         const type = removed.name || (removed.data && removed.data.type) || null;
-        // If a SidebarManager is present, only allow deletion of this machine
-        // type when that type exists in the sidebar slots. This prevents
-        // players from deleting machine types that aren't available in the
-        // current level's sidebar (so placed machines can be protected).
-        try {
-            const sidebar = this.levelManager?.sidebarManager;
-            if (sidebar && Array.isArray(sidebar.slots)) {
-                let found = false;
-                for (const s of sidebar.slots) {
-                    try {
-                        const variants = JSON.parse(s.dataset.variants ?? '[]');
-                        if (Array.isArray(variants) && variants.indexOf(type) !== -1) { found = true; break; }
-                    } catch (e) { /* ignore parse errors per-slot */ }
-                }
-                if (!found) return null;
-            }
-        } catch (e) {
-            // If anything goes wrong inspecting the sidebar, fall back to
-            // allowing removal so we don't lock out normal editor behaviour.
-        }
+        if (!this.hasActionSlot('delete') || !this.hasMachineInSlot(type)) return null;
 
         this.grid[x][y] = null;
+        this._portalMachineCacheDirty = true;
         this.generateQueue();
         const rot = (removed.data && removed.data.rot) || 0;
         return { type, rot };
@@ -562,11 +628,13 @@ export default class FactoryManager {
             case "machines":
                 this.generateGrid();
                 this.generateQueue();
+                this._portalMachineCacheDirty = true;
                 break;
             case "all":
                 this.items = {};
                 this.generateGrid();
                 this.generateQueue();
+                this._portalMachineCacheDirty = true;
                 break;
             default:
                 console.log(`Unknown reset type: ${type}`);

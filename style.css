@@ -46,7 +46,7 @@ canvas {
     font-size: 1.8dvh;
     font-weight: 800;
     cursor: pointer;
-    pointer-events: auto;
+    pointer-events: none;
     z-index: 12;
     display: flex;
     align-items: center;
@@ -54,6 +54,9 @@ canvas {
 }
 .spawner-panel-toggle:hover {
     background: linear-gradient(to right, #2a2a2aff, #3a3a3aff);
+}
+.spawner-panel-toggle[style*="display: flex"] {
+    pointer-events: auto;
 }
 
 .spawner-panel {
@@ -103,6 +106,11 @@ canvas {
     color: #FFFFFFFF;
     cursor: pointer;
     text-align: center;
+    pointer-events: none;
+}
+
+.spawner-panel.open .spawner-panel-entry {
+    pointer-events: auto;
 }
 
 .spawner-panel-entry:hover {
@@ -404,6 +412,13 @@ canvas {
     text-shadow: #000000FF 0 0 0.8dvh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
+}
+
+/* Developer mode: make header orange and interactive */
+body.dev-mode #level-id {
+    color: #FFA500FF; /* orange */
+    pointer-events: auto; /* allow clicking to edit */
+    cursor: pointer;
 }
 #funny-text {
     position: fixed;

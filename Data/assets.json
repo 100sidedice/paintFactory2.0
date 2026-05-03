@@ -16,12 +16,21 @@
             "Machine": {"name": "Machine"},
             "conveyor": {"name": "conveyor"},
             "spawner": {"name": "spawner"},
+            "spawner-twoway": {"name": "spawner-twoway"},
+            "spawner-threeway": {"name": "spawner-threeway"},
+            "spawner-fourway": {"name": "spawner-fourway"},
             "conveyor-left": {"name": "conveyor-left"},
             "conveyor-right": {"name": "conveyor-right"},
             "conveyor-merge": {"name": "conveyor-merge"},
+            "conveyor-mergeleft": {"name": "conveyor-mergeleft"},
             "conveyor-mergeright": {"name": "conveyor-mergeright"},
             "seller": {"name": "seller"},
-            "mixer": {"name": "mixer"}
+            "nothing": {"name": "nothing"},
+            "mixer": {"name": "mixer"},
+            "mixer-left": {"name": "mixer-left"},
+            "mixer-right": {"name": "mixer-right"},
+            "portal": {"name": "portal"},
+            "portal-in": {"name": "portal-in"}
         }
     },
     "machineData": {

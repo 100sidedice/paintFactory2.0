@@ -20,7 +20,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / 'Assets' / 'machines.png'
-DST = ROOT / 'Assets' / 'machines_gray.png'
+DST = ROOT / 'Assets' / 'machines-grayed.png'
 
 if not SRC.exists():
     print(f"Source not found: {SRC}", file=sys.stderr)

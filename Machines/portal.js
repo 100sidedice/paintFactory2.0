@@ -1,0 +1,338 @@
+import MachineBase from './Machine.js';
+import { isItemColliding } from './components/collision.js';
+import { applyMovement } from './components/movement.js';
+import { intHex, addHex32 } from '../src/Helpers/colorHelpers.js';
+
+const PORTAL_MASK = 0x000000FF;
+const CENTER_MASK = 0xFFFFFFFF;
+const DEFAULT_PORTAL_COLOR = 0x000000FF;
+const OUTPUT_CENTER_COLOR = 0xFF00FFFF; // magenta
+const COLOR_HOLD_MS = 1100;
+
+export default class portal extends MachineBase {
+    constructor(name, machineData, manager) {
+        super(name, machineData, manager);
+        this._count = 0;
+        this._colorContributions = [];
+        this.color = intHex(machineData?.color ?? DEFAULT_PORTAL_COLOR);
+    }
+
+    update(delta) {
+        super.update(delta);
+        this._tickPortalColor(delta);
+    }
+
+    _tickPortalColor(delta) {
+        if (!this._colorContributions.length) {
+            this.color = DEFAULT_PORTAL_COLOR;
+            this.data.color = this.color;
+            return;
+        }
+
+        for (let i = this._colorContributions.length - 1; i >= 0; i--) {
+            this._colorContributions[i].timeLeft -= delta;
+            if (this._colorContributions[i].timeLeft <= 0) this._colorContributions.splice(i, 1);
+        }
+
+        if (!this._colorContributions.length) {
+            this.color = DEFAULT_PORTAL_COLOR;
+            this.data.color = this.color;
+            return;
+        }
+
+        const mixed = addHex32(...this._colorContributions.map((entry) => entry.color));
+        this.color = intHex(mixed);
+        this.data.color = this.color;
+    }
+
+    _absorbPortalColor(itemColor) {
+        this._colorContributions.push({ color: intHex(itemColor), timeLeft: COLOR_HOLD_MS });
+        const mixed = addHex32(...this._colorContributions.map((entry) => entry.color));
+        this.color = intHex(mixed);
+        this.data.color = this.color;
+    }
+
+    _isUncoloredPortal() {
+        const c = intHex(this.color) >>> 0;
+        const r = (c >>> 24) & 0xFF;
+        const g = (c >>> 16) & 0xFF;
+        const b = (c >>> 8) & 0xFF;
+        return (r === 0 && g === 0 && b === 0);
+    }
+
+    _handleColorInputCollisions(item, size) {
+        const collisions = [this.data.collisionInA, this.data.collisionInB, this.data.collisionInC];
+        for (const collision of collisions) {
+            if (!collision) continue;
+            const colliding = isItemColliding(this.data.x, this.data.y, item, size, collision, this.data.rot);
+            if (!colliding) continue;
+            this._absorbPortalColor(item.color);
+            this.manager.removeItem(item);
+            return true;
+        }
+        return false;
+    }
+
+    _handleConveyorCollision(item, size) {
+        const collision = this.data.collisionConveyor;
+        if (!collision) return false;
+        const colliding = isItemColliding(this.data.x, this.data.y, item, size, collision, this.data.rot);
+        if (!colliding) return false;
+        const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
+        const flippedRot = ((this.data.rot || 0) + 180) % 360;
+        applyMovement(true, item, speed, flippedRot);
+        return true;
+    }
+
+    onItemCollision(item, size) {
+        if (this._handleColorInputCollisions(item, size)) return;
+        this._handleConveyorCollision(item, size);
+    }
+
+    _getFrameIndex(frameLimit, fps) {
+        const frame = Math.floor((performance.now() * fps) / 1000) % frameLimit;
+        return (frameLimit - 1 - frame + frameLimit) % frameLimit;
+    }
+
+    _getCenterMaskBaseColor() {
+        return OUTPUT_CENTER_COLOR;
+    }
+
+    draw(ctx, x, y, size = 16) {
+        const img = this.manager.paused
+            ? this.manager?.AssetManager?.get('machines-image-grayed')
+            : this.manager?.AssetManager?.get('machines-image');
+        if (!img) {
+            super.draw(ctx, x, y, size);
+            return;
+        }
+
+        const row = this.data.texture?.row ?? 0;
+        const tw = 16;
+        const th = 16;
+        let cols = Math.max(1, Math.floor(img.width / tw));
+        if (this.manager.paused) cols = 1;
+        const tileIndex = row * cols;
+        const frameCount = Math.max(1, this.data.texture?.frameCount ?? cols);
+        const frameLimit = this.manager.paused ? 1 : Math.min(cols, frameCount);
+        const fps = this.data.texture?.fps ?? 8;
+        const frame = this._getFrameIndex(frameLimit, fps);
+        const sx = frame * tw;
+        const sy = Math.floor(tileIndex / cols) * th;
+
+        const portalColor = intHex(this.color ?? DEFAULT_PORTAL_COLOR);
+        const centerColor = getRoleCenterColor(this._getCenterMaskBaseColor(), this._isUncoloredPortal());
+        const tileCanvas = getPortalTile(img, sx, sy, tw, th, portalColor, centerColor, PORTAL_MASK, CENTER_MASK);
+
+        if (!this.rotating) {
+            ctx.drawImage(tileCanvas, 0, 0, tw, th, x * size - size / 2, y * size - size / 2, size, size);
+        } else {
+            ctx.save();
+            ctx.translate(x * size, y * size);
+            if (this.data.rot === 0 && this.rotating === -1) {
+                ctx.rotate((this.extraRotation - this.rotating * Math.PI / 2) + 2 * Math.PI);
+            } else {
+                ctx.rotate((this.extraRotation - this.rotating * Math.PI / 2));
+            }
+            ctx.drawImage(tileCanvas, 0, 0, tw, th, -size / 2, -size / 2, size, size);
+            ctx.restore();
+        }
+    }
+}
+
+const _portalTileCache = new Map();
+const _portalFrameCache = new Map();
+const _portalGradientFillCache = new Map();
+const _centerFillCache = new Map();
+const _maskedLayerCache = new Map();
+const _canvasIdMap = new WeakMap();
+let _canvasIdCounter = 1;
+
+function createCanvas(w, h) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    return { canvas, ctx };
+}
+
+function getImageId(img) {
+    if (!img) return 'img:null';
+    if (img.src) return img.src;
+    return `canvas:${img.width}x${img.height}`;
+}
+
+function getCanvasId(canvas) {
+    if (!canvas) return 'canvas:null';
+    if (!_canvasIdMap.has(canvas)) {
+        _canvasIdMap.set(canvas, `c${_canvasIdCounter++}`);
+    }
+    return _canvasIdMap.get(canvas);
+}
+
+function hexToRgba(hex32) {
+    const v = intHex(hex32) >>> 0;
+    const r = (v >>> 24) & 0xFF;
+    const g = (v >>> 16) & 0xFF;
+    const b = (v >>> 8) & 0xFF;
+    const a = v & 0xFF;
+    return [r, g, b, a];
+}
+
+function clampByte(n) {
+    return Math.max(0, Math.min(255, Math.round(n || 0)));
+}
+
+function rgbaCss(r, g, b, aByte) {
+    const a = Math.max(0, Math.min(1, (aByte ?? 255) / 255));
+    return `rgba(${clampByte(r)}, ${clampByte(g)}, ${clampByte(b)}, ${a})`;
+}
+
+function getRoleCenterColor(baseColor, uncolored) {
+    const [r, g, b, a] = hexToRgba(baseColor);
+    if (!uncolored) return intHex(baseColor);
+    const dim = 0.30;
+    const rr = clampByte(r * dim);
+    const gg = clampByte(g * dim);
+    const bb = clampByte(b * dim);
+    return (((rr & 0xFF) << 24) | ((gg & 0xFF) << 16) | ((bb & 0xFF) << 8) | (a & 0xFF)) >>> 0;
+}
+
+function getPortalFrameData(img, sx, sy, tw, th, portalMaskColor = PORTAL_MASK, centerMaskColor = CENTER_MASK) {
+    const frameKey = `${getImageId(img)}|${sx},${sy},${tw},${th}|pm:${intHex(portalMaskColor)}|cm:${intHex(centerMaskColor)}`;
+    if (_portalFrameCache.has(frameKey)) return _portalFrameCache.get(frameKey);
+
+    const { canvas: frameCanvas, ctx: frameCtx } = createCanvas(tw, th);
+    frameCtx.clearRect(0, 0, tw, th);
+    frameCtx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
+
+    const { canvas: portalMaskCanvas, ctx: portalMaskCtx } = createCanvas(tw, th);
+    const { canvas: centerMaskCanvas, ctx: centerMaskCtx } = createCanvas(tw, th);
+
+    const maskPortal = hexToRgba(portalMaskColor);
+    const maskCenter = hexToRgba(centerMaskColor);
+
+    try {
+        const idata = frameCtx.getImageData(0, 0, tw, th);
+        const src = idata.data;
+
+        const portalMaskData = portalMaskCtx.createImageData(tw, th);
+        const centerMaskData = centerMaskCtx.createImageData(tw, th);
+
+        const p = portalMaskData.data;
+        const c = centerMaskData.data;
+
+        for (let i = 0; i < src.length; i += 4) {
+            const isPortal = (
+                src[i] === maskPortal[0] &&
+                src[i + 1] === maskPortal[1] &&
+                src[i + 2] === maskPortal[2] &&
+                src[i + 3] === maskPortal[3]
+            );
+            const isCenter = (
+                src[i] === maskCenter[0] &&
+                src[i + 1] === maskCenter[1] &&
+                src[i + 2] === maskCenter[2] &&
+                src[i + 3] === maskCenter[3]
+            );
+
+            if (isPortal) {
+                p[i] = 255;
+                p[i + 1] = 255;
+                p[i + 2] = 255;
+                p[i + 3] = 255;
+            }
+            if (isCenter) {
+                c[i] = 255;
+                c[i + 1] = 255;
+                c[i + 2] = 255;
+                c[i + 3] = 255;
+            }
+        }
+
+        portalMaskCtx.putImageData(portalMaskData, 0, 0);
+        centerMaskCtx.putImageData(centerMaskData, 0, 0);
+    } catch (e) {
+        // ignore tainted canvas and keep empty masks
+    }
+
+    const out = { frameCanvas, portalMaskCanvas, centerMaskCanvas };
+    _portalFrameCache.set(frameKey, out);
+    return out;
+}
+
+function getSteppedGradientFillCanvas(tw, th, portalColor) {
+    const colorKey = intHex(portalColor) >>> 0;
+    const key = `${tw}x${th}|${colorKey}`;
+    if (_portalGradientFillCache.has(key)) return _portalGradientFillCache.get(key);
+
+    const [r, g, b, a] = hexToRgba(colorKey);
+    const { canvas, ctx } = createCanvas(tw, th);
+
+    const cx = (tw - 1) / 2;
+    const cy = (th - 1) / 2;
+    const radius = Math.max(1, Math.hypot(cx, cy));
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+
+    for (let i = 0; i <= 20; i++) {
+        const t = i / 20; // 5% steps
+        const intensity = 0.15 + (0.85 * t);
+        grad.addColorStop(t, rgbaCss(r * intensity, g * intensity, b * intensity, a));
+    }
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, tw, th);
+
+    _portalGradientFillCache.set(key, canvas);
+    return canvas;
+}
+
+function getSolidFillCanvas(tw, th, color) {
+    const colorKey = intHex(color) >>> 0;
+    const key = `${tw}x${th}|${colorKey}`;
+    if (_centerFillCache.has(key)) return _centerFillCache.get(key);
+
+    const [r, g, b, a] = hexToRgba(colorKey);
+    const { canvas, ctx } = createCanvas(tw, th);
+    ctx.fillStyle = rgbaCss(r, g, b, a);
+    ctx.fillRect(0, 0, tw, th);
+
+    _centerFillCache.set(key, canvas);
+    return canvas;
+}
+
+function getMaskedLayer(fillCanvas, maskCanvas) {
+    const key = `${getCanvasId(fillCanvas)}|${getCanvasId(maskCanvas)}`;
+    if (_maskedLayerCache.has(key)) return _maskedLayerCache.get(key);
+
+    const { canvas, ctx } = createCanvas(fillCanvas.width, fillCanvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(fillCanvas, 0, 0);
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(maskCanvas, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+
+    _maskedLayerCache.set(key, canvas);
+    return canvas;
+}
+
+function getPortalTile(img, sx, sy, tw, th, portalColor, centerColor, portalMaskColor = PORTAL_MASK, centerMaskColor = CENTER_MASK) {
+    const id = `${getImageId(img)}|${sx},${sy},${tw},${th}|p:${(intHex(portalColor) >>> 0).toString(16)}|c:${(intHex(centerColor) >>> 0).toString(16)}`;
+    if (_portalTileCache.has(id)) return _portalTileCache.get(id);
+
+    const { frameCanvas, portalMaskCanvas, centerMaskCanvas } = getPortalFrameData(img, sx, sy, tw, th, portalMaskColor, centerMaskColor);
+    const portalFill = getSteppedGradientFillCanvas(tw, th, portalColor);
+    const centerFill = getSolidFillCanvas(tw, th, centerColor);
+    const portalLayer = getMaskedLayer(portalFill, portalMaskCanvas);
+    const centerLayer = getMaskedLayer(centerFill, centerMaskCanvas);
+
+    const { canvas, ctx } = createCanvas(tw, th);
+    ctx.clearRect(0, 0, tw, th);
+    ctx.drawImage(frameCanvas, 0, 0);
+    ctx.drawImage(portalLayer, 0, 0);
+    ctx.drawImage(centerLayer, 0, 0);
+
+    _portalTileCache.set(id, canvas);
+    return canvas;
+}

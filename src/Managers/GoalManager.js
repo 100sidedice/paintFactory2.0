@@ -68,10 +68,11 @@ export default class GoalManager {
         const existingOverlay = document.getElementById('time-up-overlay');
         if (existingOverlay) existingOverlay.remove();
         if (!goalObj) return;
-        const keys = Object.keys(goalObj || {});
+        const normalizedGoalObj = this._normalizeGoalObject(goalObj);
+        const keys = Object.keys(normalizedGoalObj || {});
         // Goal keys expected to be hex strings like "#RRGGBBAA" or machine names
         for (const k of keys) {
-            const need = parseInt(goalObj[k], 10) || 0;
+            const need = parseInt(normalizedGoalObj[k], 10) || 0;
             // determine goal kind: color if key starts with '#', 'time' if key is time, otherwise assume machine name
             if (String(k).toLowerCase() === 'time') {
                 const entry = this._createEntry({ kind: 'time', key: k, need });
@@ -89,11 +90,95 @@ export default class GoalManager {
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
             }
+            // attach dev-mode click handler to allow editing goals
+            try {
+                const last = this.goals[this.goals.length - 1];
+                if (last && last.el) {
+                    last.el.addEventListener('click', (ev) => {
+                        if (!this.levelManager || !this.levelManager.devMode) return;
+                        ev.stopPropagation();
+                        const cur = last;
+                        const sample = cur.kind === 'color' ? `dye, ${cur.key}, ${cur.need}` : (cur.kind === 'machine' ? `machine, ${cur.key}, ${cur.need}` : `time, ${cur.need}`);
+                        const input = prompt('Edit goal (examples: dye,#RRGGBBAA,100 OR machine,conveyor,10 OR time,100). Type "del" or "remove" to delete.', sample);
+                        if (!input) return;
+                        const parts = input.split(',').map(p=>p.trim()).filter(p=>p!=='');
+                        if (!parts || parts.length === 0) return;
+                        if (/^\d+$/.test(parts[0])) {
+                            const position = parseInt(parts[0], 10);
+                            const goalObjRef = this.levelManager.currentLevelData = this.levelManager.currentLevelData || {};
+                            goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
+                            const goalsRef = goalObjRef.Goal;
+                            const reordered = this._moveGoalToPosition(goalsRef, cur.key, position);
+                            goalObjRef.Goal = reordered;
+                            goalObjRef.goal = reordered;
+                            this.populate(reordered);
+                            return;
+                        }
+                        const cmd = parts[0].toLowerCase();
+                        const goalObjRef = this.levelManager.currentLevelData = this.levelManager.currentLevelData || {};
+                        goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
+                        const goalsRef = goalObjRef.Goal;
+                        // delete command
+                        if (cmd === 'del' || cmd === 'delete' || cmd === 'remove' || cmd === 'rm') {
+                            try { delete goalsRef[cur.key]; } catch(e){}
+                            if (String(cur.key).toLowerCase() === 'time') delete goalsRef.Time;
+                            this.populate(goalsRef);
+                            return;
+                        }
+                        // remove previous key (we'll replace)
+                        try { delete goalsRef[cur.key]; } catch(e){}
+                        if (cmd === 'dye' || cmd === 'color' || cmd === '#') {
+                            const col = parts[1] ? (parts[1].startsWith('#') ? parts[1].toUpperCase() : `#${parts[1].toUpperCase()}`) : cur.key;
+                            const cnt = parseInt(parts[2], 10) || cur.need || 0;
+                            goalsRef[col] = cnt;
+                        } else if (cmd === 'machine' || cmd === 'm') {
+                            const m = parts[1] || cur.key;
+                            const cnt = parseInt(parts[2], 10) || cur.need || 0;
+                            goalsRef[m] = cnt;
+                        } else if (cmd === 'time') {
+                            const cnt = parseInt(parts[1], 10) || cur.need || 0;
+                            goalsRef['time'] = cnt;
+                            delete goalsRef.Time;
+                        } else {
+                            // fallback: try to interpret as 'machineName,count'
+                            const maybeName = parts[0];
+                            const maybeCnt = parseInt(parts[1], 10) || cur.need || 0;
+                            goalsRef[maybeName] = maybeCnt;
+                        }
+                        // re-populate UI
+                        this.populate(goalsRef);
+                    });
+                }
+            } catch (e) {
+                console.debug('GoalManager: attach edit handler failed', e);
+            }
         }
         // initial refresh to populate counts
         this._refreshAllGoals();
         // start animating machine swatches (if any)
         this._startGoalAnimLoop();
+    }
+
+    _normalizeGoalObject(goalObj) {
+        if (!goalObj || typeof goalObj !== 'object') return goalObj;
+        const normalized = { ...goalObj };
+        const timeValue = normalized.time ?? normalized.Time;
+        if (timeValue !== undefined) {
+            normalized.time = timeValue;
+        }
+        delete normalized.Time;
+        return normalized;
+    }
+
+    _moveGoalToPosition(goalObj, key, position) {
+        if (!goalObj || typeof goalObj !== 'object') return goalObj;
+        const entries = Object.entries(this._normalizeGoalObject(goalObj));
+        const currentIndex = entries.findIndex(([entryKey]) => String(entryKey) === String(key));
+        if (currentIndex < 0) return { ...this._normalizeGoalObject(goalObj) };
+        const safePosition = Math.max(1, Math.min(entries.length, position || 1));
+        const [picked] = entries.splice(currentIndex, 1);
+        entries.splice(safePosition - 1, 0, picked);
+        return Object.fromEntries(entries);
     }
     _createEntry(opts) {
         const wrap = document.createElement('div');
@@ -186,7 +271,9 @@ export default class GoalManager {
         const tileIndex = row * cols;
         let fps = (data.texture && data.texture.fps) ?? 0;
         if (!fps || fps <= 0) fps = 4;
-        const frame = Math.floor((nowMs * fps) / 1000) % cols;
+        const frameCount = Math.max(1, data.texture?.frameCount ?? cols);
+        const frameLimit = Math.min(cols, frameCount);
+        const frame = Math.floor((nowMs * fps) / 1000) % frameLimit;
         const sx = frame * tw;
         const sy = Math.floor(tileIndex / cols) * th;
         ctx.imageSmoothingEnabled = false;
@@ -202,7 +289,19 @@ export default class GoalManager {
         const tw = th; // assume square frames
         const cols = Math.max(1, Math.floor(img.width / tw));
         const totalMs = Math.max(1, (g.need || 0) * 1000);
-        const remainingMs = Math.max(0, (g.endTimeMs || 0) - nowMs);
+        const devMode = !!this.levelManager?.devMode;
+        if (devMode) {
+            if (!g._devModeFrozen) {
+                g._devModeFrozen = true;
+                g._devModeRemainingMs = Math.max(0, (g.endTimeMs || 0) - nowMs);
+            }
+        } else if (g._devModeFrozen) {
+            const remaining = Math.max(0, g._devModeRemainingMs ?? Math.max(0, (g.endTimeMs || 0) - nowMs));
+            g.endTimeMs = nowMs + remaining;
+            g._devModeFrozen = false;
+            delete g._devModeRemainingMs;
+        }
+        let remainingMs = devMode ? Math.max(0, g._devModeRemainingMs ?? Math.max(0, (g.endTimeMs || 0) - nowMs)) : Math.max(0, (g.endTimeMs || 0) - nowMs);
         const remainingSec = Math.ceil(remainingMs / 1000);
         g.remaining = remainingSec;
         if (g.haveEl) g.haveEl.textContent = String(remainingSec);
@@ -243,7 +342,8 @@ export default class GoalManager {
                     if (!sw) continue;
                     this._drawTimeFrame(sw, g, ts);
                     // if time expired and not yet handled, trigger expiry
-                    if ((g.endTimeMs || 0) <= ts && !this._timeExpired) {
+                    // if time expired and not yet handled, trigger expiry (skip while dev mode is active)
+                    if (!this.levelManager?.devMode && (g.endTimeMs || 0) <= ts && !this._timeExpired) {
                         this._onTimeExpired();
                     }
                 }

@@ -232,6 +232,7 @@ export default class SidebarManager {
         this.sidebar.innerHTML = '';
         this.slots = [];
         const machines = levelData.Machines ?? [];
+            this.levelMachines = machines; // Store the raw level machines for availability checks
         this.spawnerItems = levelData['spawner-items'] ?? [];
 
         this.initialSpawnerCountsInt = {};
@@ -260,10 +261,6 @@ export default class SidebarManager {
             for (let j = 0; j < machines.length; j++) {
                 const tt = machines[j][0];
                 if (tt.split('-')[0] === base) variants.push(tt);
-            }
-            // If this is delete, add rotate and select as special action variants
-            if (base === DELETE_BASE) {
-                variants.push('delete-rotate', 'delete-select');
             }
             seenBases.add(base);
             this._addSlot(variants);
@@ -439,12 +436,219 @@ export default class SidebarManager {
             }
         });
 
+        // middle-click (auxclick button===1) to edit slot variants / counts when in dev mode
+        slot.addEventListener('auxclick', (e) => {
+            try {
+                if (e.button !== 1) return; // middle click only
+                const lm = this.factoryManager && this.factoryManager.levelManager ? this.factoryManager.levelManager : null;
+                if (!lm || !lm.devMode) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const baseVariants = JSON.parse(slot.dataset.variants || '[]');
+                const base = baseVariants[0] || '';
+                const sample = base ? `${base}, 999` : 'conveyor, 999';
+                const input = prompt('Edit slot machines. Enter a new base slot, a JSON array, a single integer to move the slot, or "remove"/"del"/"rm" to remove it.', sample);
+                if (!input) return;
+                if (/^\d+$/.test(input.trim())) {
+                    const position = parseInt(input.trim(), 10);
+                    const levelData = lm.currentLevelData = lm.currentLevelData || {};
+                    levelData.Machines = levelData.Machines || levelData.machines || [];
+                    const groups = this._groupMachineEntries(levelData.Machines);
+                    const slotBase = (base.split && base.split('-')[0]) || base;
+                    const moved = this._moveMachineGroup(groups, slotBase, position);
+                    levelData.Machines = this._flattenMachineGroups(moved);
+                    levelData.machines = levelData.Machines;
+                    this.populateSidebar(levelData);
+                    return;
+                }
+                const lower = input.trim().toLowerCase();
+                if (lower === 'remove' || lower === 'del' || lower === 'rm') {
+                    const levelData = lm.currentLevelData = lm.currentLevelData || {};
+                    levelData.Machines = levelData.Machines || levelData.machines || [];
+                    const groups = this._groupMachineEntries(levelData.Machines);
+                    const slotBase = (base.split && base.split('-')[0]) || base;
+                    const filtered = groups.filter(group => group.base !== slotBase);
+                    levelData.Machines = this._flattenMachineGroups(filtered);
+                    levelData.machines = levelData.Machines;
+                    this.populateSidebar(levelData);
+                    return;
+                }
+                let parsed = null;
+                try {
+                    parsed = this._parseSlotSpec(input, 1);
+                } catch (e) {
+                    parsed = null;
+                }
+                if (!parsed) return;
+                // update level data Machines: remove existing entries with same base, then insert parsed
+                const levelData = lm.currentLevelData = lm.currentLevelData || {};
+                levelData.Machines = levelData.Machines || levelData.machines || [];
+                const groups = this._groupMachineEntries(levelData.Machines);
+                const slotBase = (base.split && base.split('-')[0]) || base;
+                const replaced = groups.map(group => {
+                    if (group.base !== slotBase) return group;
+                    return { base: slotBase, entries: parsed.map(([name, count]) => [name, count]) };
+                });
+                levelData.Machines = this._flattenMachineGroups(replaced);
+                levelData.machines = levelData.Machines;
+                // repopulate sidebar
+                this.populateSidebar(levelData);
+            } catch (err) {
+                console.debug('SidebarManager: slot edit failed', err);
+            }
+        });
+
         this.sidebar.appendChild(slot);
         this.slots.push(slot);
     }
 
     _isSpawnerType(type) {
         return type?.split('-')[0] === SPAWNER_BASE;
+    }
+
+    _groupMachineEntries(machines = []) {
+        const groups = [];
+        const byBase = new Map();
+        for (const entry of machines || []) {
+            if (!Array.isArray(entry) || entry.length === 0) continue;
+            const type = String(entry[0] ?? '').trim();
+            if (!type) continue;
+            const base = type.split('-')[0];
+            let group = byBase.get(base);
+            if (!group) {
+                group = { base, entries: [] };
+                byBase.set(base, group);
+                groups.push(group);
+            }
+            group.entries.push([type, entry[1] ?? 0]);
+        }
+        return groups;
+    }
+
+    _flattenMachineGroups(groups = []) {
+        const flattened = [];
+        for (const group of groups || []) {
+            for (const entry of (group?.entries || [])) {
+                if (!Array.isArray(entry) || entry.length === 0) continue;
+                flattened.push([String(entry[0]), entry[1] ?? 0]);
+            }
+        }
+        return flattened;
+    }
+
+    _moveMachineGroup(groups = [], base, position) {
+        const nextGroups = Array.isArray(groups) ? [...groups] : [];
+        const index = nextGroups.findIndex(group => String(group?.base) === String(base));
+        if (index < 0) return nextGroups;
+        const safePosition = Math.max(1, Math.min(nextGroups.length, parseInt(position, 10) || 1));
+        const [picked] = nextGroups.splice(index, 1);
+        nextGroups.splice(safePosition - 1, 0, picked);
+        return nextGroups;
+    }
+
+    _parseSlotSpec(input, fallbackCount = 1) {
+        if (typeof input !== 'string') return null;
+        const text = input.trim();
+        if (!text) return null;
+
+        if (text.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(text);
+                if (Array.isArray(parsed)) {
+                    if (parsed.length > 0 && Array.isArray(parsed[0])) {
+                        return parsed
+                            .map(entry => Array.isArray(entry) ? [String(entry[0]), entry[1] ?? fallbackCount] : null)
+                            .filter(Boolean);
+                    }
+                    if (parsed.length >= 1) {
+                        return [[String(parsed[0]), parsed[1] ?? fallbackCount]];
+                    }
+                }
+            } catch (e) {
+                // fall through to loose parsing
+            }
+        }
+
+        const headParts = this._splitTopLevelCommaParts(text);
+        if (!headParts.length) return null;
+
+        const base = headParts[0];
+        const baseCount = parseInt(headParts[1], 10);
+        const count = Number.isFinite(baseCount) ? baseCount : fallbackCount;
+        const result = [[base, count]];
+
+        const variantText = headParts.slice(2).join(',').trim();
+        for (const [variantName, variantCountText] of this._extractVariantPairs(variantText)) {
+            const name = this._resolveVariantName(base, variantName);
+            const variantCount = parseInt(variantCountText, 10);
+            result.push([name, Number.isFinite(variantCount) ? variantCount : count]);
+        }
+
+        return result;
+    }
+
+    _splitTopLevelCommaParts(text) {
+        const parts = [];
+        let current = '';
+        let depth = 0;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch === '[') depth += 1;
+            else if (ch === ']') depth = Math.max(0, depth - 1);
+            if (ch === ',' && depth === 0) {
+                if (current.trim()) parts.push(current.trim());
+                current = '';
+            } else {
+                current += ch;
+            }
+        }
+        if (current.trim()) parts.push(current.trim());
+        return parts;
+    }
+
+    _extractVariantPairs(text) {
+        const result = [];
+        if (!text) return result;
+        const regex = /\[\s*([^\[\],]+?)\s*,\s*([^\[\]]+?)\s*\]/g;
+        let match = null;
+        while ((match = regex.exec(text))) {
+            result.push([match[1].trim(), match[2].trim()]);
+        }
+        return result;
+    }
+
+    _resolveVariantName(base, name) {
+        const text = String(name ?? '').trim();
+        if (!text) return text;
+        if (text.startsWith('#')) return text;
+        if (text === base) return text;
+        if (text.startsWith(`${base}-`)) return text;
+        if (text.includes('-')) return text;
+        return `${base}-${text}`;
+    }
+
+    addSlotFromSpec(input, levelData = null) {
+        const parsed = this._parseSlotSpec(input, 1);
+        if (!parsed || parsed.length === 0) return false;
+        const targetLevel = levelData || this.factoryManager?.levelManager?.currentLevelData || {};
+        targetLevel.Machines = targetLevel.Machines || targetLevel.machines || [];
+
+        const groups = this._groupMachineEntries(targetLevel.Machines);
+        const base = String(parsed[0][0] || '').split('-')[0];
+        if (!base) return false;
+
+        const nextGroup = {
+            base,
+            entries: parsed.map(([name, count]) => [this._resolveVariantName(base, name), count ?? 1])
+        };
+        const existingIndex = groups.findIndex(group => String(group.base) === base);
+        if (existingIndex >= 0) groups[existingIndex] = nextGroup;
+        else groups.push(nextGroup);
+
+        targetLevel.Machines = this._flattenMachineGroups(groups);
+        targetLevel.machines = targetLevel.Machines;
+        this.populateSidebar(targetLevel);
+        return true;
     }
 
     _drawIcon(icon, type, nowMs = null) {
@@ -473,9 +677,11 @@ export default class SidebarManager {
         // Calculate animation frame if timestamp provided
         if (nowMs !== null) {
             const fps = data.texture?.fps ?? 1;
+            const frameCount = Math.max(1, data.texture?.frameCount ?? cols);
+            const frameLimit = Math.min(cols, frameCount);
             const remaining = this._getRemainingCount(type);
             const adjustedFps = remaining <= 0 ? fps * 0.7 : fps;
-            sx = Math.floor((nowMs * adjustedFps) / 1000) % cols * TILE_SIZE;
+            sx = Math.floor((nowMs * adjustedFps) / 1000) % frameLimit * TILE_SIZE;
         }
 
         if (this._isSpawnerType(type)) {
@@ -764,8 +970,10 @@ export default class SidebarManager {
                 if (newType === type) continue;
                 if (this._getRemainingCount(newType) <= 0) continue;
                 const rot = parseInt(machine.data?.rot ?? 0, 10) || 0;
-                this.factoryManager.removeMachine(gridX, gridY);
-                this.factoryManager.addMachine(newType, gridX, gridY, rot);
+                const removed = this.factoryManager.removeMachine(gridX, gridY);
+                if (!removed) return;
+                const placedMachine = this.factoryManager.addMachine(newType, gridX, gridY, rot);
+                if (!placedMachine) return;
                 this._updateSlotCountDisplay(slot);
                 for (let s = 0; s < this.slots.length; s++) this._updateSlotCountDisplay(this.slots[s]);
                 const size = window.innerHeight / 9;
@@ -870,6 +1078,38 @@ export default class SidebarManager {
         return false;
     }
 
+    hasSlot(type) {
+        return this.slots.some(s => s.dataset.machineType === type);
+    }
+
+    hasMachine(type) {
+        if (!type) return false;
+        return this.slots.some(s => {
+            try {
+                const variants = JSON.parse(s.dataset.variants ?? '[]');
+                return Array.isArray(variants) && variants.includes(type);
+            } catch (e) {
+                return false;
+            }
+        });
+    }
+
+    // Check the raw level data to see if an action (like 'delete-rotate') is available
+    isActionAvailable(action) {
+        if (!this.levelMachines) return false;
+        try {
+            return Array.isArray(this.levelMachines) && this.levelMachines.some(entry => entry && entry[0] === action);
+        } catch (e) { return false; }
+    }
+
+    // Check level data for machine availability (regardless of visible slots/variants)
+    isMachineAvailableInLevel(type) {
+        if (!type || !this.levelMachines) return false;
+        try {
+            return Array.isArray(this.levelMachines) && this.levelMachines.some(entry => entry && entry[0] === type);
+        } catch (e) { return false; }
+    }
+
     setupInputBindings() {
         for (let i = 1; i <= 7; i++) {
             const code = `Digit${i}`;
@@ -884,6 +1124,7 @@ export default class SidebarManager {
             ["keyboard", "ShiftLeft", "held"],
             ["mouse", "left", "held"]
         ], () => {
+            if(!this.isActionAvailable(DELETE_SELECT)) return;
             const pos = this.input.getPos();
             const { gridX, gridY } = this._getGridCoordinates(pos);
             if (gridX < 0 || gridY < 0) return;
@@ -897,6 +1138,7 @@ export default class SidebarManager {
             ["keyboard", "ShiftLeft", "held"],
             ["mouse", "right", "held"]
         ], () => {
+            if(!this.isActionAvailable(DELETE_SELECT)) return;
             const pos = this.input.getPos();
             const { gridX, gridY } = this._getGridCoordinates(pos);
             if (gridX < 0 || gridY < 0) return;
@@ -962,30 +1204,38 @@ export default class SidebarManager {
 
             // Handle rotate
             if (type === DELETE_ROTATE) {
+                // Ensure action is available in the level
+                if (!this.factoryManager.hasActionSlot(DELETE_ROTATE)) return;
+
                 // Check if there are selected cells - rotate all selected cells
                 if (this.factoryManager.selectedCells && this.factoryManager.selectedCells.size > 0) {
                     console.log('Rotating', this.factoryManager.selectedCells.size, 'selected cells');
                     for (const cellKey of this.factoryManager.selectedCells) {
                         const [x, y] = cellKey.split(',').map(Number);
                         const machine = this.factoryManager.getMachine(x, y);
-                        if (machine) {
-                            const currentRot = machine.data?.rot || 0;
-                            const newRot = (currentRot + ROTATION_STEP) % ROTATION_CYCLE;
-                            this.factoryManager.setMachineProperty(x, y, 'rot', newRot);
-                            if (typeof machine.rotate === 'function') {
-                                try { machine.rotate(ROTATION_STEP); } catch (e) { }
-                            }
+                        if (!machine) continue;
+                        const machineType = machine.name || machine.data?.type;
+                        // Skip machines not available in level/sidebar
+                        if (!this.factoryManager.hasMachineInSlot(machineType)) continue;
+                        const currentRot = machine.data?.rot || 0;
+                        const newRot = (currentRot + ROTATION_STEP) % ROTATION_CYCLE;
+                        this.factoryManager.setMachineProperty(x, y, 'rot', newRot);
+                        if (typeof machine.rotate === 'function') {
+                            try { machine.rotate(ROTATION_STEP); } catch (e) { }
                         }
                     }
                 } else if (gridX >= 0 && gridY >= 0) {
                     // Rotate single cell at cursor
                     const machine = this.factoryManager.getMachine(gridX, gridY);
                     if (machine) {
-                        const currentRot = machine.data?.rot || 0;
-                        const newRot = (currentRot + ROTATION_STEP) % ROTATION_CYCLE;
-                        this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
-                        if (typeof machine.rotate === 'function') {
-                            try { machine.rotate(ROTATION_STEP); } catch (e) { }
+                        const machineType = machine.name || machine.data?.type;
+                        if (this.factoryManager.hasMachineInSlot(machineType)) {
+                            const currentRot = machine.data?.rot || 0;
+                            const newRot = (currentRot + ROTATION_STEP) % ROTATION_CYCLE;
+                            this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
+                            if (typeof machine.rotate === 'function') {
+                                try { machine.rotate(ROTATION_STEP); } catch (e) { }
+                            }
                         }
                     }
                 }
@@ -1048,6 +1298,7 @@ export default class SidebarManager {
                 if (this._getSpawnerRemaining(this._getSelectedSpawnerColor()) <= 0) return;
             }
             const placed = this.factoryManager.addMachine(type, gridX, gridY, parseInt(slot.dataset.rot ?? '0', 10) || 0);
+            if (!placed) return;
             if (this._isSpawnerType(type)) {
                 placed.data = placed.data || {};
                 const n = intHex(this._getSelectedSpawnerColor());
@@ -1112,32 +1363,13 @@ export default class SidebarManager {
             if (this._selectDragStart.processedCells && this._selectDragStart.processedCells.has(cellKey)) {
                 return;
             }
-            
             // Ensure tracked cells set exists
             if (!this._selectDragStart.processedCells) {
                 this._selectDragStart.processedCells = new Set();
             }
             this._selectDragStart.processedCells.add(cellKey);
             
-            // Initialize selected cells if needed
-            if (!this.factoryManager.selectedCells) {
-                this.factoryManager.selectedCells = new Set();
-            }
-            
-            // Only operate on cells that have machines
-            if (!this.factoryManager.getMachine(gridX, gridY)) {
-                return;
-            }
-            
-            // Based on initial state, select or deselect this tile
-            if (this._selectDragStart.isStartSelected) {
-                // Started on selected, so deselect
-                this.factoryManager.selectedCells.delete(cellKey);
-            } else {
-                // Started on unselected, so select
-                this.factoryManager.selectedCells.add(cellKey);
-            }
-            console.log('Selected cells now:', Array.from(this.factoryManager.selectedCells || []));
+            this.factoryManager.select(gridX, gridY, "add");
         }, ["rotate-select-action"], 3);
 
         // Release handler for select variant: finalize drag
@@ -1160,16 +1392,25 @@ export default class SidebarManager {
         });
 
         this.input.addBinding('mouse', 'right', 'held', () => {
-            if (!this.slots.some(s => s.dataset.machineType === 'delete')) return;
             const pos = this.input.getPos();
             const { gridX, gridY } = this._getGridCoordinates(pos);
+
+            const selSlot = this.slots[this.selectedIndex];
+            if (selSlot && selSlot.dataset.machineType === DELETE_SELECT) {
+                this.factoryManager.select(gridX, gridY, "remove");
+                return;
+            }
+            if(this.factoryManager.clearSelection()) {
+                this.input.disableClass('world-edit', 'timed', 300); // stop accidental deletes while trying to clear selection
+                return;
+            };
+            if (!this.hasSlot('delete')) return;
             const removed = this.factoryManager.removeMachine(gridX, gridY);
             if (removed) {
                 const { x: cx, y: cy } = this._getGridCellCenter(gridX, gridY);
                 this.particleManager.spawnAt(cx, cy, { count: 10, colors: [0xFFC800FF, 0x494949FF], size: 10, speed: 300, life: 700 });
                 this._refreshAllSlots();
             }
-            this.factoryManager.clearSelection();
         }, ["delete", "world-edit"], 1);
 
         // Shift+wheel -> always rotate the selected slot (even when hovering a tile)
@@ -1177,6 +1418,7 @@ export default class SidebarManager {
             ["keyboard", "ShiftLeft", "held"],
             ["wheel", "scroll", "press"]
         ], (payload) => {
+            if (!this.isActionAvailable(DELETE_ROTATE)) return;
             if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
             const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();
@@ -1199,6 +1441,7 @@ export default class SidebarManager {
             ["keyboard", "ShiftRight", "held"],
             ["wheel", "scroll", "press"]
         ], (payload) => {
+            if (!this.isActionAvailable(DELETE_ROTATE)) return;
             if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
             const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();
@@ -1218,6 +1461,7 @@ export default class SidebarManager {
         }, ["select"], 2);
 
         this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
+            if (!this.isActionAvailable(DELETE_ROTATE)) return;
             if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
             const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();
@@ -1229,6 +1473,8 @@ export default class SidebarManager {
             let hoveredMachine = null;
             if (grid && gridX >= 0 && gridY >= 0 && gridX < grid.length && gridY < (grid[0]?.length || 0)) hoveredMachine = grid[gridX][gridY];
             if (hoveredMachine) {
+                const machineType = hoveredMachine.name || hoveredMachine.data?.type;
+                if (!this.hasMachine(machineType)) return;
                 const cur = parseInt(this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0, 10) || 0;
                 const newRot = ((cur + rotateAmount) % ROTATION_CYCLE + ROTATION_CYCLE) % ROTATION_CYCLE;
                 this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);
@@ -1251,6 +1497,7 @@ export default class SidebarManager {
 
         // rotate selection when there is an active selection (higher priority)
         this.input.addBinding('wheel', 'scroll', 'press', (payload) => {
+            if (!this.isActionAvailable(DELETE_ROTATE)) return;
             if (performance.now() - this.lastRotate < ROTATE_RELEASE_THROTTLE) return;
             const rotateAmount = (payload.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP);
             this.lastRotate = performance.now();

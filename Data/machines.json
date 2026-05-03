@@ -19,7 +19,7 @@
             "left":7,
             "right":7
         },
-        "texture": {"row": 0, "fps": 8, "info":"Moves items upward by default"}
+        "texture": {"row": 0, "fps": 8, "frameCount": 4, "info":"Moves items upward by default"}
     },
     "conveyor-left": {
         "name": "Conveyor left",
@@ -36,7 +36,7 @@
             "left":0,
             "right":7
         },
-        "texture": {"row": 1, "fps": 8, "info":"Moves items upward by default"}
+        "texture": {"row": 1, "fps": 8, "frameCount": 4, "info":"Moves items upward by default"}
     },
     "conveyor-right": {
         "name": "Conveyor right",
@@ -53,9 +53,32 @@
             "left":7,
             "right":0
         },
-        "texture": {"row": 2, "fps": 8, "info":"Moves items upward by default"}
+        "texture": {"row": 2, "fps": 8, "frameCount": 4, "info":"Moves items upward by default"}
     },
     "conveyor-merge": {
+        "name": "Conveyor Merge",
+        "description": "Merges items from different directions",
+        "collision-up": {
+            "top":0,
+            "bottom":7,
+            "left":7,
+            "right":7
+        },
+        "collision-left": {
+            "top":7,
+            "bottom":7,
+            "left":0,
+            "right":9
+        },
+        "collision-right": {
+            "top":7,
+            "bottom":7,
+            "left":9,
+            "right":0
+        },
+        "texture": {"row": 3, "fps": 8, "frameCount": 4, "info":"Moves items upward+left to the right"}
+    },
+    "conveyor-mergeleft": {
         "name": "Conveyor Merge",
         "description": "Merges items from different directions",
         "collision-up": {
@@ -70,7 +93,7 @@
             "left":0,
             "right":0
         },
-        "texture": {"row": 5, "fps": 8, "info":"Moves items upward+left to the right"}
+        "texture": {"row": 5, "fps": 8, "frameCount": 4, "info":"Moves items upward+left to the right"}
     },
     "conveyor-mergeright": {
         "name": "Conveyor Merge (Right)",
@@ -87,7 +110,7 @@
             "left":0,
             "right":0
         },
-        "texture": {"row": 3, "fps": 8, "info":"Moves items upward+right to the left"}
+        "texture": {"row": 14, "fps": 8, "frameCount": 4, "info":"Moves items upward+right to the left"}
     },
     "spawner": {
         "name": "Item Spawner",
@@ -99,7 +122,79 @@
             "right":0
         },
         "outputs": ["top"],
-        "texture": {"row": 8, "fps": 8, "info":"Points upward by default"}
+        "texture": {"row": 8, "fps": 8, "frameCount": 4, "info":"Points upward by default"}
+    },
+    "spawner-twoway": {
+        "name": "Spawner two-way",
+        "description": "Spawns items at regular intervals, both left AND right.",
+        "collisionA": {
+            "top":0,
+            "bottom":0,
+            "left":0,
+            "right":8
+        },
+        "collisionB": {
+            "top":0,
+            "bottom":0,
+            "left":8,
+            "right":0
+        },
+        "outputs": ["left", "right"],
+        "texture": {"row": 9, "fps": 8, "frameCount": 4, "info":"Points left & right by default"}
+    },
+    "spawner-threeway": {
+        "name": "Spawner three-way",
+        "description": "Spawns items at regular intervals, left, right and even up! (but not down, it's 'three-way' not 'four-way'!)",
+        "collisionA": {
+            "top":0,
+            "bottom":0,
+            "left":0,
+            "right":9
+        },
+        "collisionB": {
+            "top":0,
+            "bottom":0,
+            "left":9,
+            "right":0
+        },
+        "collisionC": {
+            "top":0,
+            "bottom":7,
+            "left":7,
+            "right":7
+        },
+        "outputs": ["left", "right"],
+        "texture": {"row": 10, "fps": 8, "frameCount": 4, "info":"Points left & right by default"}
+    },
+    "spawner-fourway": {
+        "name": "Spawner four-way",
+        "description": "Spawns items at regular intervals, left, right, up and down!",
+        "collisionA": {
+            "top":0,
+            "bottom":0,
+            "left":0,
+            "right":9
+        },
+        "collisionB": {
+            "top":0,
+            "bottom":0,
+            "left":9,
+            "right":0
+        },
+        "collisionC": {
+            "top":0,
+            "bottom":8,
+            "left":7,
+            "right":7
+        },
+        "collisionD": {
+            "top":8,
+            "bottom":0,
+            "left":7,
+            "right":7
+        },
+        "outputs": ["left", "right"],
+        "texture": {"row": 11, "fps": 8, "frameCount": 4, "info":"Points left & right by default"}
     },
     "seller": {
         "name": "Item Seller",
@@ -111,8 +206,9 @@
             "right":0
         },
         "outputs": [],
-        "texture": {"row": 6, "fps": 8, "info":"No rotation states - disable rotation for this machine"}
+        "texture": {"row": 6, "fps": 8, "frameCount": 4, "info":"No rotation states - disable rotation for this machine"}
     },
+    
     "mixer": {
         "name": "Item Mixer",
         "description": "Mixes colors together.)",
@@ -141,6 +237,144 @@
             "right":7
         },
         "outputs": [],
-        "texture": {"row": 7, "fps": 8, "info":"Inputs left and right, output top. Use additive color mixing for this machine (e.g. red + green = yellow, red + blue = magenta, green + blue = cyan, red + green + blue = white)"}
+        "texture": {"row": 7, "fps": 8, "frameCount": 4, "info":"Inputs left and right, output top. Use additive color mixing for this machine (e.g. red + green = yellow, red + blue = magenta, green + blue = cyan, red + green + blue = white)"}
+    },
+    "mixer-right": {
+        "name": "Item Mixer",
+        "description": "Mixes colors together.)",
+        "collisionDown": {
+            "top":16,
+            "bottom":16,
+            "left":16,
+            "right":16
+        },
+        "collisionRight": {
+            "top":7,
+            "bottom":7,
+            "left":9,
+            "right":0
+        },
+        "collisionUp": {
+            "top":0,
+            "bottom":7,
+            "left":7,
+            "right":7
+        },
+        "collisionLeft": {
+            "top":9,
+            "bottom":0,
+            "left":7,
+            "right":7
+        },
+        "outputs": [],
+        "texture": {"row": 12, "fps": 8, "frameCount": 4, "info":"Inputs left and right, output top. Use additive color mixing for this machine (e.g. red + green = yellow, red + blue = magenta, green + blue = cyan, red + green + blue = white)"}
+    },
+    "mixer-left": {
+        "name": "Item Mixer",
+        "description": "Mixes colors together.)",
+        "collisionDown": {
+            "top":16,
+            "bottom":16,
+            "left":16,
+            "right":16
+        },
+        "collisionLeft": {
+            "top":7,
+            "bottom":7,
+            "left":0,
+            "right":9
+        },
+        "collisionUp": {
+            "top":0,
+            "bottom":7,
+            "left":7,
+            "right":7
+        },
+        "collisionRight": {
+            "top":9,
+            "bottom":0,
+            "left":7,
+            "right":7
+        },
+        "outputs": [],
+        "texture": {"row": 13, "fps": 8, "frameCount": 4, "info":"Inputs left and right, output top. Use additive color mixing for this machine (e.g. red + green = yellow, red + blue = magenta, green + blue = cyan, red + green + blue = white)"}
+    },
+    "portal": {
+        "name": "Portal",
+        "description": "Teleports items from one portal to another of the same color.",
+        "collisionInA": {
+            "top":7,
+            "bottom":7,
+            "left":0,
+            "right":9
+        },
+        "collisionInB": {
+            "top":7,
+            "bottom":7,
+            "left":9,
+            "right":0
+        },
+        "collisionInC": {
+            "top":0,
+            "bottom":9,
+            "left":7,
+            "right":7
+        },
+        "collisionConveyor": {
+            "top":7,
+            "bottom":0,
+            "left":7,
+            "right":7
+        },
+        "outputs": [],
+        "texture": {"row": 15, "fps": 8, "frameCount": 12, "info":"Play aniamtion backwards. if item enters from an input, portal becomes that color for 1 second. (multiple = mix). Mask colors: Portal: 0x000000FF, Center: 0xFFFFFFFF"}
+    },
+    "portal-in": {
+        "name": "Portal in",
+        "description": "Teleports items from one portal to another of the same color.",
+        "collisionInA": {
+            "top":7,
+            "bottom":7,
+            "left":0,
+            "right":9
+        },
+        "collisionInB": {
+            "top":7,
+            "bottom":7,
+            "left":9,
+            "right":0
+        },
+        "collisionInC": {
+            "top":0,
+            "bottom":9,
+            "left":7,
+            "right":7
+        },
+        "collisionConveyor": {
+            "top":9,
+            "bottom":0,
+            "left":7,
+            "right":7
+        },
+        "collisionTeleport": {
+            "top":7,
+            "bottom":7,
+            "left":7,
+            "right":7
+        },
+        "outputs": [],
+        "texture": {"row": 15, "fps": 8, "frameCount": 12, "info":"if item enters from an input, portal becomes that color for 1 second. (multiple = mix). Mask colors: Portal: 0x000000FF, Center: 0xFFFFFFFF"}
+    },
+    "nothing": {
+        "name": "nothing",
+        "description": "Destroys items",
+        "collision": {
+            "top":0,
+            "bottom":0,
+            "left":0,
+            "right":0
+        },
+        "outputs": [],
+        "texture": {"row": 16, "fps": 8, "frameCount": 4, "info":"actully called void, but 'void' is a reserved word in javascript so I had to name the machine 'nothing' instead."}
     }
 }

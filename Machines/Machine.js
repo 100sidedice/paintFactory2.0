@@ -28,11 +28,14 @@ export default class Machine {
         let cols = Math.max(1, Math.floor(img.width / tw));
         if (this.manager.paused) cols = 1; // prevent animation when paused by forcing tile index to 0, since `tileIndex = row * cols` and row is always 0 or positive
         const tileIndex = row * cols; // assume one-tile-per-row layout
-        const sx = Math.floor((performance.now() * this.data.texture.fps)/1000 % cols) * tw;
+        const frameCount = Math.max(1, this.data.texture?.frameCount ?? cols);
+        const frameLimit = this.manager.paused ? 1 : Math.min(cols, frameCount);
+        const sx = Math.floor((performance.now() * this.data.texture.fps)/1000 % frameLimit) * tw;
         const sy = Math.floor(tileIndex / cols) * th;
         // draw centered similar to base Machine
+        let dpr = (1/(window.devicePixelRatio))/4; // we scale a tiny bit to prevent anti-aliasing gaps
         if(!this.rotating){
-            ctx.drawImage(img, sx, sy, tw, th, x*size - size/2, y*size - size/2, size, size);
+            ctx.drawImage(img, sx+dpr, sy+dpr, tw-dpr*2, th-dpr*2, x*size - size/2-dpr, y*size - size/2-dpr, size+dpr*3, size+dpr*3);
         } else {
             ctx.save();
             ctx.translate(x*size, y*size);
@@ -43,7 +46,7 @@ export default class Machine {
             } else {
                 ctx.rotate((this.extraRotation - this.rotating * Math.PI/2));
             }
-            ctx.drawImage(img, sx, sy, tw, th, -size/2, -size/2, size, size);
+            ctx.drawImage(img, sx+dpr, sy+dpr, tw-dpr*2, th-dpr*2, -size/2-dpr, -size/2-dpr, size+dpr*3, size+dpr*3);
             ctx.restore();
         }
     }

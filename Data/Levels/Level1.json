@@ -11,7 +11,7 @@
         "Time": 10000,
         "#000000FF": 5
     },
-    "Machines": [["delete",1],["spawner",1],["conveyor",20],["seller",1]],
+    "Machines": [["delete",1],["delete-rotate",1],["delete-select",1],["spawner",1],["conveyor",20],["seller",1]],
     "spawner-items": [{"color":255,"count":1}],
     "Placed": {}
 }

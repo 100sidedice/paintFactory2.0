@@ -1,4 +1,4 @@
-{  
+{
     "Header": "Sandbox",
     "Description": "Have fun!",
     "funny": "With great power comes great... umm... uh... paint? I guess?",
@@ -7,8 +7,6 @@
         "Right click a machine in the sidebar to see it's description",
         "Make a path from the spawner to the goal using conveyor belts"
     ],
-    "Placed": {
-    },
     "Goal": {
         "Time": 10000,
         "#0000FFFF": 100,
@@ -19,18 +17,43 @@
         "#FF00FFFF": 100,
         "#FFFFFFFF": 100
     },
-    "Machines":[
-        ["delete", 1],
-        ["spawner", 9999],
-        ["mixer", 9999],
-        ["conveyor", 9999],
-        ["conveyor-left", 9999],
-        ["conveyor-right", 9999],
-        ["conveyor-merge", 9999],
-        ["conveyor-mergeright", 9999],
-        ["seller", 9999]
+    "Machines": [
+        ["delete",1],
+        ["delete-rotate",1],
+        ["delete-select",1],
+        ["spawner",9999],
+        ["spawner-twoway",9999],
+        ["spawner-threeway",9999],
+        ["spawner-fourway",9999],
+        ["mixer",9999],
+        ["mixer-left",9999],
+        ["mixer-right",9999],
+        ["conveyor",9999],
+        ["conveyor-left",9999],
+        ["conveyor-right",9999],
+        ["conveyor-merge",9999],
+        ["conveyor-mergeleft",9999],
+        ["conveyor-mergeright",9999],
+        ["seller",9999],
+        ["portal-in",9999],
+        ["portal",9999], 
+        ["nothing",9999]
     ],
     "spawner-items": [
-        {"color": "#FFFFFFFF", "count": 999}
-    ]
+        {"color":4294967295,"count":999},
+        {"color":4278190335,"count":999},
+        {"color":16711935,"count":999},
+        {"color":65535,"count":999},
+        {"color":"#000000FF","count":999}
+    ],
+    "Placed": {
+        "6.2": "nothing",
+        "6.3": "nothing",
+        "6.4": "nothing",
+        "7.2": "nothing",
+        "7.3": "seller",
+        "8.2": "nothing",
+        "8.3": "nothing",
+        "8.4": "nothing"
+    }
 }

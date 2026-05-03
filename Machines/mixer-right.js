@@ -24,6 +24,7 @@ export default class mixer extends MachineBase {
         this.splitTimeMax = 1000; // ms until return to normal logic
         this._splitColors = null; // { r: int32, g: int32, b: int32 } while splitting
     }
+
     _mixColors(color1, color2) {
         // Special case: black + anything = half the color
         const isBlack = (c) => (intHex(c) & 0xFFFFFF00) === 0x00000000; // RGB channels are zero
@@ -129,80 +130,6 @@ export default class mixer extends MachineBase {
             applyMovement(true, item, speed, this.data.rot);
             return;
         }
-        if (isItemColliding(this.data.x, this.data.y, item, size, colDown, this.data.rot)) {
-            this.splitTime = this.splitTimeMax;
-            this.splitting = true;
-            const splitColor = item.color;
-
-            // remove the original input item
-            this.manager.removeItem(item);
-
-            // extract R/G/B channels from the 32-bit color (RRGGBBAA)
-            const v = intHex(splitColor) >>> 0;
-            const r = (v >>> 24) & 0xFF;
-            const g = (v >>> 16) & 0xFF;
-            const b = (v >>> 8) & 0xFF;
-            const a = v & 0xFF;
-
-            // build three colors: black + specific channel (preserve alpha)
-            const rCol = (((r & 0xFF) << 24) | (0 << 16) | (0 << 8) | (a & 0xFF)) >>> 0;
-            const gCol = (((0) << 24) | ((g & 0xFF) << 16) | (0 << 8) | (a & 0xFF)) >>> 0;
-            const bCol = (((0) << 24) | (0 << 16) | ((b & 0xFF) << 8) | (a & 0xFF)) >>> 0;
-
-            // remember split mask colors while splitting so draw() can use them
-            this._splitColors = { r: rCol, g: gCol, b: bCol };
-            // also set primary display color to green channel while splitting
-            this.color = gCol;
-
-            const x = this.data.x;
-            const y = this.data.y;
-            // spawn items only for non-zero channels (avoid spawning 'black' dyes)
-            // compute rotated offsets so spawn positions respect machine rotation
-            const cx = x + 0.5;
-            const cy = y + 0.5;
-            
-            // offsets in tile units: left (-0.2,0), up (0,-0.2), right (0.2,0)
-            
-            if (r > 0) {
-                const [ox, oy] = rotOffset(-0.2, 0, this.data.rot);
-                const idR = `item_${Date.now()}_${this._count++}`;
-                const itemR = new Item(idR, cx + ox, cy + oy, rCol, this.manager);
-                this.manager.items[idR] = itemR;
-            }
-            if (g > 0) {
-                const [ox, oy] = rotOffset(0, -0.2, this.data.rot);
-                const idG = `item_${Date.now()}_${this._count++}`;
-                const itemG = new Item(idG, cx + ox, cy + oy, gCol, this.manager);
-                this.manager.items[idG] = itemG;
-            }
-            if (b > 0) {
-                const [ox, oy] = rotOffset(0.2, 0, this.data.rot);
-                const idB = `item_${Date.now()}_${this._count++}`;
-                const itemB = new Item(idB, cx + ox, cy + oy, bCol, this.manager);
-                this.manager.items[idB] = itemB;
-            }
-
-            return;
-        }
-        if(this.splitting) {
-            // While splitting, left & right colliders act like conveyors facing away from the machine
-            const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
-            const colLeft = this.data.collisionLeft;
-            const colRight = this.data.collisionRight;
-            // left -> face machine rotation minus 90 degrees
-            if (isItemColliding(this.data.x, this.data.y, item, size, colLeft, this.data.rot)) {
-                const leftRot = ((this.data.rot || 0) - 90 + 360) % 360;
-                applyMovement(true, item, speed, leftRot);
-                return;
-            }
-            // right -> face machine rotation plus 90 degrees
-            if (isItemColliding(this.data.x, this.data.y, item, size, colRight, this.data.rot)) {
-                const rightRot = ((this.data.rot || 0) + 90 + 360) % 360;
-                applyMovement(true, item, speed, rightRot);
-                return;
-            }
-            return;
-        } // stop absorbing new items while splitting (splitting overrides mixing)
 
         // left
         const colLeft = this.data.collisionLeft;
@@ -342,16 +269,4 @@ function getColorizedTile(img, sx, sy, tw, th, mainNewColor, mainMaskColor=0x353
 
     _colorizedTileCache.set(id, canvas);
     return canvas;
-}
-/**
- * Rotate a point (dx,dy) by `rot` degrees clockwise, returning the rotated offsets.
- */
-function rotOffset(dx, dy, rot=0) {
-    const ang = rot * Math.PI / 180;
-    const cos = Math.cos(ang);
-    const sin = Math.sin(ang);
-    // standard rotation (counter-clockwise) applied to (dx,dy)
-    const rx = dx * cos - dy * sin;
-    const ry = dx * sin + dy * cos;
-    return [rx, ry];
 }

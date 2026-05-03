@@ -138,6 +138,31 @@ export default class LevelManager {
         }
         // Ensure the funny-text element has click wiring after it's present in DOM
         this._ensureFunnyHandler();
+        // attach dev-mode editable handlers for header and description and funny
+        const attachEditable = (selector, keyName) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            el.style.pointerEvents = 'auto';
+            el.addEventListener('click', (ev) => {
+                if (!this.devMode) return;
+                ev.stopPropagation();
+                const cur = this.currentLevelData || {};
+                const curVal = cur[keyName] ?? '';
+                const input = prompt(`Edit ${keyName}`, curVal);
+                if (input === null) return;
+                cur[keyName] = input;
+                // update DOM immediately
+                if (selector === '#level-id') document.querySelector('#level-id').textContent = input;
+                if (selector === '#level-text') document.querySelector('#level-text').textContent = input;
+                if (selector === '#funny-text') {
+                    document.querySelector('#funny-text').textContent = input;
+                    this._originalFunnyText = input;
+                }
+            });
+        };
+        attachEditable('#level-id', 'Header');
+        attachEditable('#level-text', 'Description');
+        attachEditable('#funny-text', 'funny');
         return true;
     }
 
@@ -158,6 +183,53 @@ export default class LevelManager {
         this.input.addBinding('keyboard', 'KeyL', 'press', () => {this.cycleLevel(true); }, 'level-manager', 0);
         // F8: export placed machines as level JSON to clipboard
         this.input.addBinding('keyboard', 'F8', 'press', () => { this.exportPlacedToClipboard(); }, 'level-manager', 0);
+        // F4: toggle developer mode
+        this.devMode = false;
+        this.input.addBinding('keyboard', 'F4', 'press', () => {
+            this.devMode = !this.devMode;
+            document.body.classList.toggle('dev-mode', this.devMode);
+            console.debug('LevelManager: devMode ->', this.devMode);
+        }, 'level-manager', 0);
+        // F3: prompt to add a new goal when in dev mode
+        this.input.addBinding('keyboard', 'F3', 'press', () => {
+            if (!this.devMode) return;
+            const input = prompt('Add goal (examples: dye,#RRGGBBAA,100 OR machine,conveyor,10 OR time,100)');
+            if (!input) return;
+            const parts = input.split(',').map(p=>p.trim()).filter(p=>p!=='');
+            if (!parts || parts.length === 0) return;
+            const cmd = parts[0].toLowerCase();
+            const goalObjRef = this.currentLevelData = this.currentLevelData || {};
+            goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
+            const goalsRef = goalObjRef.Goal;
+            if (cmd === 'dye' || cmd === 'color' || cmd === '#') {
+                const col = parts[1] ? (parts[1].startsWith('#') ? parts[1].toUpperCase() : `#${parts[1].toUpperCase()}`) : null;
+                const cnt = parseInt(parts[2], 10) || 0;
+                if (col) goalsRef[col] = cnt;
+            } else if (cmd === 'machine' || cmd === 'm') {
+                const m = parts[1] || null;
+                const cnt = parseInt(parts[2], 10) || 0;
+                if (m) goalsRef[m] = cnt;
+            } else if (cmd === 'time') {
+                const cnt = parseInt(parts[1], 10) || 0;
+                goalsRef['time'] = cnt;
+                delete goalsRef['Time'];
+            } else if (cmd === 'del' || cmd === 'delete' || cmd === 'remove' || cmd === 'rm') {
+                // no-op for add
+            } else {
+                const maybeName = parts[0];
+                const maybeCnt = parseInt(parts[1], 10) || 0;
+                goalsRef[maybeName] = maybeCnt;
+            }
+            if (this.goalManager && typeof this.goalManager.populate === 'function') this.goalManager.populate(goalsRef);
+        }, 'level-manager', 0);
+        // F5: prompt to add a new slot when in dev mode
+        this.input.addBinding('keyboard', 'F5', 'press', () => {
+            if (!this.devMode) return;
+            const input = prompt('Add slot (examples: conveyor, 999 OR spawner, 999, [[#000000FF,999]])');
+            if (!input) return;
+            const added = this.sidebarManager?.addSlotFromSpec?.(input, this.currentLevelData);
+            if (!added) console.debug('LevelManager: could not add slot from spec');
+        }, 'level-manager', 0);
     }
 
     // Cycle levels. If `forward` is true advance, otherwise go backwards.
@@ -250,17 +322,22 @@ export default class LevelManager {
             "spawner-items": this.currentLevelData?.['spawner-items'] || this.currentLevelData?.spawnerItems || [],
             Placed: placed
         };
-        // Build a pretty JSON string but keep `Machines` and `spawner-items` compact
+        // Build a pretty JSON string with array items on separate lines
         const indent = (s, pad = 4) => s.split('\n').map((line, i) => (i===0? '': ' '.repeat(pad)) + line).join('\n');
+        const formatArray = (arr) => {
+            if (!arr || arr.length === 0) return '[]';
+            const items = arr.map(item => JSON.stringify(item)).join(',\n        ');
+            return `[\n        ${items}\n    ]`;
+        };
         const parts = [];
         parts.push(`"Header": ${JSON.stringify(out.Header)}`);
         parts.push(`"Description": ${JSON.stringify(out.Description)}`);
         parts.push(`"funny": ${JSON.stringify(out.funny)}`);
         parts.push(`"Hints": ${indent(JSON.stringify(out.Hints || [], null, 4))}`);
         parts.push(`"Goal": ${indent(JSON.stringify(out.Goal || {}, null, 4))}`);
-        // compact machines / spawner-items
-        parts.push(`"Machines": ${JSON.stringify(out.Machines || [])}`);
-        parts.push(`"spawner-items": ${JSON.stringify(out['spawner-items'] || [])}`);
+        // machines and spawner-items with items on separate lines
+        parts.push(`"Machines": ${formatArray(out.Machines || [])}`);
+        parts.push(`"spawner-items": ${formatArray(out['spawner-items'] || [])}`);
         // Placed - pretty
         parts.push(`"Placed": ${indent(JSON.stringify(out.Placed || {}, null, 4))}`);
         // assemble with proper indentation

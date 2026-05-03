@@ -147,8 +147,10 @@ class Program {
         const inset = lw / 2;
         // detect if there's already a machine at the hovered cell
         let hasMachine = false;
+        let canReplaceMachine = false;
         if (gridX >= 0 && gridY >= 0 && gridX < this.FactoryManager.grid.length && gridY < (this.FactoryManager.grid[0]?.length||0)) {
             hasMachine = !!this.FactoryManager.grid[gridX][gridY];
+            canReplaceMachine = hasMachine ? !!this.FactoryManager.canReplaceMachineAt(gridX, gridY) : false;
         }
 
         // rotation pulse calculation (used to keep preview visible while animating)
@@ -188,9 +190,9 @@ class Program {
             this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
             this.ctx.restore();
         } else {
-            // If the world already has a machine at this tile and we're not mid-rotate
-            // or the last rotate targeted a machine, show only outline
-            if (hasMachine && (previewLim >= 200 || rotateTarget === 'machine')) {
+            // If the world already has a machine at this tile and it cannot be replaced,
+            // show only outline instead of a placement preview.
+            if (hasMachine && !canReplaceMachine && (previewLim >= 200 || rotateTarget === 'machine')) {
                 this.ctx.save();
                 this.ctx.strokeStyle = setChannel('#FFFFFFFF', 'a', 0.5, 'string');
                 this.ctx.lineWidth = lw; // match pixel-perfect stroke
@@ -218,7 +220,9 @@ class Program {
             const cols = img ? Math.max(1, Math.floor(img.width / tw)) : 1;
             const tileIndex = row * cols;
             const fps = (data.texture && data.texture.fps) || 1;
-            const frame = Math.floor((now * fps) / 1000) % cols;
+            const frameCount = Math.max(1, data.texture?.frameCount ?? cols);
+            const frameLimit = Math.min(cols, frameCount);
+            const frame = Math.floor((now * fps) / 1000) % frameLimit;
             const sx = frame * tw;
             const sy = Math.floor(tileIndex / cols) * th;
 

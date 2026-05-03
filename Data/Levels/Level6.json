@@ -1,28 +1,215 @@
-{  
-    "Header": "Level 6: Manual Labor",
-    "Description": "Create 5 white dye with only 2 conveyors and 1 mixer",
-    "funny": "An item only despawns if it is not moving.",
+{
+    "Header": "Void blocks",
+    "Description": "Sell 100 white dye",
+    "funny": "Void blocks. A block that does nothing but eats up space.",
     "Hints": [
         "Click a machine in the sidebar to select it, then click on the grid to place it",
         "Right click a machine in the sidebar to see it's description",
         "Make a path from the spawner to the goal using conveyor belts"
     ],
-    "Placed": {
-    },
     "Goal": {
-        "Time": 10000,
-        "#FFFFFFFF": 5
+        "Time": 1000,
+        "#FFFFFFFF": 100
     },
-    "Machines":[
-        ["delete", 1],
-        ["spawner", 1],  
-        ["mixer", 1],
-        ["conveyor", 2],
-        ["seller", 1]
-    ],
-    "spawner-items": [
-        {"color": "#0000FFFF", "count": 999},
-        {"color": "#00FF00FF", "count": 999},
-        {"color": "#FF0000FF", "count": 999}
-    ]
+    "Machines": [["delete",1],["delete-rotate",1],["delete-select",1],["spawner",5],["mixer",5],["conveyor",5],["conveyor-left",99],["conveyor-right",99],["conveyor-mergeleft",99],["conveyor-mergeright",99]],
+    "spawner-items": [{"color":4278190335,"count":5},{"color":16711935,"count":5},{"color":65535,"count":5}],
+    "Placed": {
+        "2.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.1": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.2": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.3": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.4": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.5": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.6": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.7": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "2.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "3.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "3.5": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "3.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "4.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "4.2": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "4.7": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "4.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "5.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "5.4": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "5.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "6.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "6.1": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "6.6": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "6.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "7.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "7.3": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "7.4": "seller",
+        "7.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "8.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "8.5": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "8.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "9.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "9.2": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "9.7": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "9.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "10.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "10.4": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "10.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "11.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "11.1": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "11.6": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "11.8": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.0": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.1": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.2": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.3": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.4": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.5": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.6": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.7": {
+            "type": "nothing",
+            "rot": 90
+        },
+        "12.8": {
+            "type": "nothing",
+            "rot": 90
+        }
+    }
 }

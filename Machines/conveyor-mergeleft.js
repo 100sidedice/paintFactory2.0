@@ -10,21 +10,16 @@ export default class conveyor extends Machine {
         super.update(delta);
     }
     onItemCollision(item, size) {
-        const collisionA = this.data['collision-left'];
+        const collisionA = this.data['collision-up'];
         const collisionB = this.data['collision-right'];
-        const collisionC = this.data['collision-up'];
         const collidingA = isItemColliding(this.data.x, this.data.y, item, size, collisionA, this.data.rot);
         const collidingB = isItemColliding(this.data.x, this.data.y, item, size, collisionB, this.data.rot);
-        const collidingC = isItemColliding(this.data.x, this.data.y, item, size, collisionC, this.data.rot);
         const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
         if (collidingA) {
-            applyMovement(true, item, speed, this.data.rot+90);
+            applyMovement(true, item, speed, this.data.rot);
         }
         if (collidingB) {
-            applyMovement(true, item, speed, this.data.rot-90);
-        }
-        if (collidingC) {
-            applyMovement(true, item, speed, this.data.rot);
+            applyMovement(true, item, speed, this.data.rot+90);
         }
     }
 }
