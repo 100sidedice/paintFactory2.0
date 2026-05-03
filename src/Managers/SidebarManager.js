@@ -446,13 +446,13 @@ export default class SidebarManager {
                 e.stopPropagation();
                 const baseVariants = JSON.parse(slot.dataset.variants || '[]');
                 const base = baseVariants[0] || '';
-                const sample = base ? `${base}, 999` : 'conveyor, 999';
+                const levelData = lm.currentLevelData = lm.currentLevelData || {};
+                levelData.Machines = levelData.Machines || levelData.machines || [];
+                const sample = this._buildSlotPromptSample(levelData, (base.split && base.split('-')[0]) || base);
                 const input = prompt('Edit slot machines. Enter a new base slot, a JSON array, a single integer to move the slot, or "remove"/"del"/"rm" to remove it.', sample);
                 if (!input) return;
                 if (/^\d+$/.test(input.trim())) {
                     const position = parseInt(input.trim(), 10);
-                    const levelData = lm.currentLevelData = lm.currentLevelData || {};
-                    levelData.Machines = levelData.Machines || levelData.machines || [];
                     const groups = this._groupMachineEntries(levelData.Machines);
                     const slotBase = (base.split && base.split('-')[0]) || base;
                     const moved = this._moveMachineGroup(groups, slotBase, position);
@@ -463,8 +463,6 @@ export default class SidebarManager {
                 }
                 const lower = input.trim().toLowerCase();
                 if (lower === 'remove' || lower === 'del' || lower === 'rm') {
-                    const levelData = lm.currentLevelData = lm.currentLevelData || {};
-                    levelData.Machines = levelData.Machines || levelData.machines || [];
                     const groups = this._groupMachineEntries(levelData.Machines);
                     const slotBase = (base.split && base.split('-')[0]) || base;
                     const filtered = groups.filter(group => group.base !== slotBase);
@@ -475,22 +473,23 @@ export default class SidebarManager {
                 }
                 let parsed = null;
                 try {
-                    parsed = this._parseSlotSpec(input, 1);
+                    parsed = this._parseSlotSpecDetailed(input, 1);
                 } catch (e) {
                     parsed = null;
                 }
-                if (!parsed) return;
+                if (!parsed || !parsed.machineEntries || parsed.machineEntries.length === 0) return;
                 // update level data Machines: remove existing entries with same base, then insert parsed
-                const levelData = lm.currentLevelData = lm.currentLevelData || {};
-                levelData.Machines = levelData.Machines || levelData.machines || [];
                 const groups = this._groupMachineEntries(levelData.Machines);
                 const slotBase = (base.split && base.split('-')[0]) || base;
                 const replaced = groups.map(group => {
                     if (group.base !== slotBase) return group;
-                    return { base: slotBase, entries: parsed.map(([name, count]) => [name, count]) };
+                    return { base: slotBase, entries: parsed.machineEntries.map(([name, count]) => [name, count]) };
                 });
                 levelData.Machines = this._flattenMachineGroups(replaced);
                 levelData.machines = levelData.Machines;
+                if (slotBase === SPAWNER_BASE && parsed.spawnerItems) {
+                    levelData['spawner-items'] = parsed.spawnerItems.map(si => ({ color: si.color, count: si.count }));
+                }
                 // repopulate sidebar
                 this.populateSidebar(levelData);
             } catch (err) {
@@ -546,7 +545,62 @@ export default class SidebarManager {
         return nextGroups;
     }
 
+    _buildSlotPromptSample(levelData, base = '') {
+        const machines = levelData?.Machines || levelData?.machines || [];
+        const groups = this._groupMachineEntries(machines);
+        const group = groups.find(g => String(g.base) === String(base)) || null;
+        if (!group) return base ? `${base}, 999` : 'conveyor, 999';
+
+        const baseEntry = group.entries.find(([name]) => String(name) === String(base)) || group.entries[0];
+        const baseCount = baseEntry?.[1] ?? 1;
+        const variantPairs = group.entries
+            .filter(([name]) => String(name) !== String(base))
+            .map(([name, count]) => `[${this._formatVariantPromptName(base, name)},${count ?? baseCount}]`);
+
+        if (String(base) !== SPAWNER_BASE) {
+            return `${base}, ${baseCount}${variantPairs.length ? `, [${variantPairs.join(', ')}]` : ''}`;
+        }
+
+        const colors = (levelData?.['spawner-items'] || levelData?.spawnerItems || [])
+            .map(si => [this._formatColorToken(si?.color), si?.count ?? baseCount])
+            .filter(([c]) => !!c)
+            .map(([c, n]) => `[${c},${n}]`);
+
+        const parts = [`${base}, ${baseCount}`];
+        if (colors.length) parts.push(`[${colors.join(', ')}]`);
+        if (variantPairs.length) parts.push(`[${variantPairs.join(', ')}]`);
+        return parts.join(', ');
+    }
+
+    _formatVariantPromptName(base, name) {
+        const text = String(name ?? '').trim();
+        if (!text) return text;
+        if (text.startsWith(`${base}-`)) return text.slice(base.length + 1);
+        return text;
+    }
+
+    _formatColorToken(color) {
+        if (color === undefined || color === null) return null;
+        const v = intHex(color) >>> 0;
+        return `#${v.toString(16).padStart(8, '0').toUpperCase()}`;
+    }
+
+    _isColorToken(text) {
+        return /^#?[0-9A-Fa-f]{8}$/.test(String(text || '').trim());
+    }
+
+    _normalizeColorToken(text) {
+        const raw = String(text || '').trim();
+        if (!this._isColorToken(raw)) return null;
+        return raw.startsWith('#') ? raw.toUpperCase() : `#${raw.toUpperCase()}`;
+    }
+
     _parseSlotSpec(input, fallbackCount = 1) {
+        const detailed = this._parseSlotSpecDetailed(input, fallbackCount);
+        return detailed?.machineEntries || null;
+    }
+
+    _parseSlotSpecDetailed(input, fallbackCount = 1) {
         if (typeof input !== 'string') return null;
         const text = input.trim();
         if (!text) return null;
@@ -556,12 +610,13 @@ export default class SidebarManager {
                 const parsed = JSON.parse(text);
                 if (Array.isArray(parsed)) {
                     if (parsed.length > 0 && Array.isArray(parsed[0])) {
-                        return parsed
+                        const machineEntries = parsed
                             .map(entry => Array.isArray(entry) ? [String(entry[0]), entry[1] ?? fallbackCount] : null)
                             .filter(Boolean);
+                        return { machineEntries, spawnerItems: null };
                     }
                     if (parsed.length >= 1) {
-                        return [[String(parsed[0]), parsed[1] ?? fallbackCount]];
+                        return { machineEntries: [[String(parsed[0]), parsed[1] ?? fallbackCount]], spawnerItems: null };
                     }
                 }
             } catch (e) {
@@ -575,16 +630,38 @@ export default class SidebarManager {
         const base = headParts[0];
         const baseCount = parseInt(headParts[1], 10);
         const count = Number.isFinite(baseCount) ? baseCount : fallbackCount;
-        const result = [[base, count]];
+        const machineEntries = [[base, count]];
+        let spawnerItems = null;
 
-        const variantText = headParts.slice(2).join(',').trim();
-        for (const [variantName, variantCountText] of this._extractVariantPairs(variantText)) {
-            const name = this._resolveVariantName(base, variantName);
-            const variantCount = parseInt(variantCountText, 10);
-            result.push([name, Number.isFinite(variantCount) ? variantCount : count]);
+        const blocks = headParts.slice(2).map(x => this._extractVariantPairs(x));
+        let variantPairs = [];
+        if (String(base) === SPAWNER_BASE) {
+            const firstBlock = blocks[0] || [];
+            const firstIsColorBlock = firstBlock.some(([name]) => this._isColorToken(name));
+            if (firstIsColorBlock) {
+                spawnerItems = firstBlock
+                    .map(([name, cnt]) => {
+                        const color = this._normalizeColorToken(name);
+                        if (!color) return null;
+                        const n = parseInt(cnt, 10);
+                        return { color, count: Number.isFinite(n) ? n : count };
+                    })
+                    .filter(Boolean);
+                variantPairs = (blocks[1] || []).concat(...blocks.slice(2));
+            } else {
+                variantPairs = blocks.flat();
+            }
+        } else {
+            variantPairs = blocks.flat();
         }
 
-        return result;
+        for (const [variantName, variantCountText] of variantPairs) {
+            const name = this._resolveVariantName(base, variantName);
+            const variantCount = parseInt(variantCountText, 10);
+            machineEntries.push([name, Number.isFinite(variantCount) ? variantCount : count]);
+        }
+
+        return { machineEntries, spawnerItems };
     }
 
     _splitTopLevelCommaParts(text) {
@@ -628,18 +705,18 @@ export default class SidebarManager {
     }
 
     addSlotFromSpec(input, levelData = null) {
-        const parsed = this._parseSlotSpec(input, 1);
-        if (!parsed || parsed.length === 0) return false;
+        const parsed = this._parseSlotSpecDetailed(input, 1);
+        if (!parsed || !parsed.machineEntries || parsed.machineEntries.length === 0) return false;
         const targetLevel = levelData || this.factoryManager?.levelManager?.currentLevelData || {};
         targetLevel.Machines = targetLevel.Machines || targetLevel.machines || [];
 
         const groups = this._groupMachineEntries(targetLevel.Machines);
-        const base = String(parsed[0][0] || '').split('-')[0];
+        const base = String(parsed.machineEntries[0][0] || '').split('-')[0];
         if (!base) return false;
 
         const nextGroup = {
             base,
-            entries: parsed.map(([name, count]) => [this._resolveVariantName(base, name), count ?? 1])
+            entries: parsed.machineEntries.map(([name, count]) => [this._resolveVariantName(base, name), count ?? 1])
         };
         const existingIndex = groups.findIndex(group => String(group.base) === base);
         if (existingIndex >= 0) groups[existingIndex] = nextGroup;
@@ -647,6 +724,9 @@ export default class SidebarManager {
 
         targetLevel.Machines = this._flattenMachineGroups(groups);
         targetLevel.machines = targetLevel.Machines;
+        if (base === SPAWNER_BASE && parsed.spawnerItems) {
+            targetLevel['spawner-items'] = parsed.spawnerItems.map(si => ({ color: si.color, count: si.count }));
+        }
         this.populateSidebar(targetLevel);
         return true;
     }

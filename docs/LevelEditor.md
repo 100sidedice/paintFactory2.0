@@ -50,6 +50,7 @@ You can enter:
 - a single integer to move the slot to a new position
 - `remove`, `del`, or `rm` to remove the slot
 - `base,amount, [[variant,amounts]]`
+- example: `conveyor, 999, [[left,5], [right,5]]`
 - shorthand variants like `left` / `right` will expand to `base-left` / `base-right`
 - For spawners: `spawner, amount, [[color,amount]], [[variant,amount]]`
 - If a variant amount is omitted, it inherits the base amount
