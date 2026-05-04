@@ -61,11 +61,11 @@ export default class ParticleManager {
             this.particles.push(p);
         }
     }
-    spawnPortalParticle(portalId, x, y, color, vx, vy) {
+    spawnPortalParticle(portalId, x, y, color, vx, vy, manager) {
         if (!this.portalParticles[portalId]) this.portalParticles[portalId] = {"count":0};
         const p = new PortalParticle(`${this.portalParticles[portalId].count}`, x, y, color, vx, vy, ()=>{
             delete this.portalParticles[portalId][`${p.name}`];
-        });
+        }, manager);
         this.portalParticles[portalId][`${this.portalParticles[portalId].count}`] = p;
         this.portalParticles[portalId].count++;
     }
@@ -141,7 +141,7 @@ export default class ParticleManager {
 
 
 class PortalParticle {
-    constructor(name, x,y,color, vx, vy, despawn){
+    constructor(name, x,y,color, vx, vy, despawn, manager){
         this.name = name;
         this.x = x;
         this.y = y;
@@ -151,12 +151,14 @@ class PortalParticle {
         this.lastX = x;
         this.lastY = y;
         this.despawn = despawn;
+        this.manager = manager;
     }
     draw(ctx) {
         ctx.fillStyle = `rgba(${(this.color >> 16) & 0xFF}, ${(this.color >> 8) & 0xFF}, ${this.color & 0xFF}, 1)`;
         const px = this.x;
         const py = this.y;
-        ctx.fillRect(px - 2, py - 2, 4, 4);
+        this.winSize = window.innerHeight/9;
+        ctx.fillRect(px * this.winSize-this.winSize/8+this.winSize/2, py * this.winSize-this.winSize/8+this.winSize/2, this.winSize/4, this.winSize/4);
     }
     update(delta){
         this.lastX = this.x;
@@ -164,11 +166,113 @@ class PortalParticle {
         this.x += this.vx * delta;
         this.y += this.vy * delta;
 
-        if(this.x < 0 || this.y < 0 || this.x > window.innerWidth || this.y > window.innerHeight){
+        // check for collisions against machines
+        const fm = this.manager;
+        const cells = this.getcollidedCells();
+        for (const c of cells) {
+            const gx = c.x; const gy = c.y;
+            if (gx < 0 || gy < 0) continue;
+            if (gx >= fm.grid.length) continue;
+            if (gy >= (fm.grid[0]?.length || 0)) continue;
+            const machine = fm.grid[gx][gy];
+            if (machine && (machine.name === 'nothing')) {
+                // get collided edge
+                const collision = this.getcollidedEdge(gx, gy);
+                if (!collision) continue;
+                const size = window.innerHeight / 9;
+                const px = collision.cx * size + size / 2;
+                const py = collision.cy * size + size / 2;
+                // prefer factory's particle manager if available
+                const pm = fm.ParticleManager;
+                fm.ParticleManager.spawnAt(px, py, { count: 14, colors: [0xFF0000FF], size: 10, speed: 220, life: 700 });
+                this.despawn();
+                return;
+            }
+        }
+        // if particle left the grid bounds, despawn
+        if (this.x < 0 || this.y < 0 || this.x >= fm.grid.length || this.y >= (fm.grid[0]?.length || 0)) {
             this.despawn();
         }
+        return;
     }
-    collide(px1,py1,px2,py2, normal){
+    getcollidedCells(){
+        // Return an array of grid cells (tile coordinates) crossed by the particle
+        // movement between `lastX,lastY` -> `x,y`. Uses a grid-traversal (Amanatides)
+        // approach to enumerate cells in the order they are entered. Each entry
+        // is { x, y, t, px, py } where `t` is the normalized param along the
+        // segment [0..1] at the entry point and `px,py` is the intersection point.
+        const out = [];
+        const x0 = this.lastX;
+        const y0 = this.lastY;
+        const x1 = this.x;
+        const y1 = this.y;
+        if (!isFinite(x0) || !isFinite(y0) || !isFinite(x1) || !isFinite(y1)) return out;
+
+        let cx = Math.floor(x0);
+        let cy = Math.floor(y0);
+        const endX = Math.floor(x1);
+        const endY = Math.floor(y1);
+
+        // push starting cell (t = 0)
+        out.push({ x: cx, y: cy, t: 0, px: x0, py: y0 });
+        if (cx === endX && cy === endY) return out;
+
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const stepX = dx > 0 ? 1 : (dx < 0 ? -1 : 0);
+        const stepY = dy > 0 ? 1 : (dy < 0 ? -1 : 0);
+
+        const tDeltaX = stepX !== 0 ? Math.abs(1 / dx) : Infinity;
+        const tDeltaY = stepY !== 0 ? Math.abs(1 / dy) : Infinity;
+
+        let tMaxX;
+        if (stepX > 0) {
+            tMaxX = ((Math.floor(x0) + 1) - x0) / dx;
+        } else if (stepX < 0) {
+            tMaxX = (x0 - Math.floor(x0)) / -dx;
+        } else {
+            tMaxX = Infinity;
+        }
+
+        let tMaxY;
+        if (stepY > 0) {
+            tMaxY = ((Math.floor(y0) + 1) - y0) / dy;
+        } else if (stepY < 0) {
+            tMaxY = (y0 - Math.floor(y0)) / -dy;
+        } else {
+            tMaxY = Infinity;
+        }
+
+        // traverse until we reach the end cell or exceed the segment
+        let t = 0;
+        const maxIter = 512;
+        for (let i = 0; i < maxIter; i++) {
+            if (tMaxX <= tMaxY) {
+                cx += stepX;
+                t = tMaxX;
+                tMaxX += tDeltaX;
+            } else {
+                cy += stepY;
+                t = tMaxY;
+                tMaxY += tDeltaY;
+            }
+
+            if (t > 1) break;
+            const px = x0 + dx * t;
+            const py = y0 + dy * t;
+            out.push({ x: cx, y: cy, t: Math.max(0, Math.min(1, t)), px, py });
+
+            if (cx === endX && cy === endY) break;
+        }
+
+        // ensure final cell is present
+        const last = out[out.length - 1];
+        if (!last || last.x !== endX || last.y !== endY) {
+            out.push({ x: endX, y: endY, t: 1, px: x1, py: y1 });
+        }
+        return out;
+    }
+    collideEdge(px1,py1,px2,py2, normal){
         // robust segment-segment intersection between movement (last -> current)
         // and edge (px1,py1 -> px2,py2). Returns collision point, normal angle
         // (uses provided `normal` angle if given) and `entering` boolean.
@@ -203,5 +307,23 @@ class PortalParticle {
         const entering = dot > 0;
 
         return { cx, cy, angle, entering };
+    }
+    getcollidedEdge(cellx, celly){
+        // check the 4 edges of the cell using collideEdge and return the earliest collision (if any)
+        const x = cellx; const y = celly;
+        const edges = [
+            { px1: x-0.5, py1: y-0.5, px2: x + 0.5, py2: y-0.5, normal: 3 * Math.PI / 2 }, // top
+            { px1: x + 0.5, py1: y-0.5, px2: x + 0.5, py2: y + 0.5, normal: 0 }, // right
+            { px1: x-0.5, py1: y + 0.5, px2: x + 0.5, py2: y + 0.5, normal: Math.PI / 2 }, // bottom
+            { px1: x-0.5, py1: y-0.5, px2: x-0.5, py2: y + 0.5, normal: Math.PI } // left
+        ];
+        let earliest = null;
+        for (const edge of edges) {
+            const collision = this.collideEdge(edge.px1, edge.py1, edge.px2, edge.py2, edge.normal);
+            if (collision && (!earliest || collision.t < earliest.t)) {
+                earliest = collision;
+            }
+        }
+        return earliest;
     }
 }

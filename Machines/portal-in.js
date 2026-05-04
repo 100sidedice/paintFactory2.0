@@ -55,6 +55,11 @@ export default class portalIn extends portal {
             const clone = new Item(id, x, y, sourceItemColor, this.manager);
             this.manager.items[id] = clone;
             current++;
+            // need to calculate speed based on angle to target portal
+            const angle = Math.atan2(out.data.y - this.data.y, out.data.x - this.data.x);
+            const speedX = Math.cos(angle) * 1;// very fast test to check that collions don't skip at speeds
+            const speedY = Math.sin(angle) * 1;
+            this.manager.ParticleManager.spawnPortalParticle(`${this.data.x},${this.data.y}`, this.data.x, this.data.y, sourceItemColor, speedX, speedY, this.manager);
             
         }
     }
@@ -80,21 +85,15 @@ export default class portalIn extends portal {
 
     onItemCollision(item, size) {
         if (this._handleColorInputCollisions(item, size)) return;
-
         const tele = this.data.collisionTeleport;
-        if (tele) {
-            const collidingTele = isItemColliding(this.data.x, this.data.y, item, size, tele, this.data.rot);
-            if (collidingTele) {
-                const sizeTile = window.innerHeight/9;
-                this.manager.ParticleManager.spawnPortalParticle(`${this.data.x},${this.data.y}`, this.data.x*sizeTile+sizeTile/2, this.data.y*sizeTile+sizeTile/2, item.color, 0.1, 0.1);
-                this.manager.removeItem(item);
-                if (!this._isUncoloredPortal()) {
-                    this._spawnTeleportedItems(item.color);
-                }
-                return;
+        const collidingTele = isItemColliding(this.data.x, this.data.y, item, size, tele, this.data.rot);
+        if (collidingTele) {
+            this.manager.removeItem(item);
+            if (!this._isUncoloredPortal()) {
+                this._spawnTeleportedItems(item.color);
             }
+            return;
         }
-
         this._handleConveyorCollision(item, size);
     }
 
