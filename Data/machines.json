@@ -376,5 +376,17 @@
         },
         "outputs": [],
         "texture": {"row": 16, "fps": 8, "frameCount": 4, "info":"actully called void, but 'void' is a reserved word in javascript so I had to name the machine 'nothing' instead."}
+    },
+    "glass": {
+        "name": "glass",
+        "description": "Simple barrier that paricle trails refract through. ",
+        "collision": {
+            "top":0,
+            "bottom":0,
+            "left":0,
+            "right":0
+        },
+        "outputs": [],
+        "texture": {"row": 17, "fps": 8, "frameCount": 4, "info":"Simple barrier that paricle trails refract through. Note, glass refracts  based on perpendicular angle of entry. Aka bounce of inner walls, but exits parallel to the edge entered on"}
     }
 }

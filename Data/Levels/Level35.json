@@ -37,7 +37,7 @@
         ["seller",9999],
         ["portal-in",9999],
         ["portal",9999], 
-        ["nothing",9999]
+        ["glass",9999]
     ],
     "spawner-items": [
         {"color":4294967295,"count":999},
