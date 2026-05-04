@@ -3,6 +3,7 @@ import { stringHex, intHex } from "../Helpers/colorHelpers.js";
 export default class ParticleManager {
     constructor() {
         this.particles = [];
+        this.portalParticles = {};
     }
     /**
      * Spawns a burst of particles at the given (x, y) position with various customizable options.
@@ -60,14 +61,33 @@ export default class ParticleManager {
             this.particles.push(p);
         }
     }
+    spawnPortalParticle(portalId, x, y, color, vx, vy) {
+        if (!this.portalParticles[portalId]) this.portalParticles[portalId] = {"count":0};
+        const p = new PortalParticle(`${this.portalParticles[portalId].count}`, x, y, color, vx, vy, ()=>{
+            delete this.portalParticles[portalId][`${p.name}`];
+        });
+        this.portalParticles[portalId][`${this.portalParticles[portalId].count}`] = p;
+        this.portalParticles[portalId].count++;
+    }
 
     update(dt) {
-        if (!this.particles.length) return;
+        this.updateMainParticles(dt);
+        this.updatePortalParticles(dt);
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        this.drawMainParticles(ctx);
+        this.drawPortalParticles(ctx);
+        
+        ctx.restore();
+    }
+    updateMainParticles(dt) {
+        if (!this.particles.length) return; // noop to keep subsequent logic consistent
         const alive = [];
         for (const p of this.particles) {
             p.age += dt;
             if (p.age >= p.life) continue;
-            // simple physics + drag
             const t = dt / 1000;
             p.vx *= Math.pow(0.95, t * 60);
             p.vy *= Math.pow(0.95, t * 60);
@@ -76,27 +96,112 @@ export default class ParticleManager {
             const ay = (p._accel && typeof p._accel.y === 'number') ? p._accel.y : 0;
             p.vx += ax * t;
             p.vy += ay * t;
-            p.vy += g * t; // gravity-ish
+            p.vy += g * t;
             p.x += p.vx * t;
             p.y += p.vy * t;
             alive.push(p);
         }
         this.particles = alive;
     }
-
-    draw(ctx) {
+    drawMainParticles(ctx) {
         if (!this.particles.length) return;
-        ctx.save();
+        
         ctx.imageSmoothingEnabled = false;
+        // draw global particles
         for (const p of this.particles) {
             const a = 1 - p.age / p.life;
             ctx.fillStyle = p.color;
             ctx.globalAlpha = a;
             const s = p.size;
-            // draw small filled rect for pixel-art style
             ctx.fillRect(Math.round(p.x - s / 2), Math.round(p.y - s / 2), Math.max(1, Math.round(s)), Math.max(1, Math.round(s)));
         }
         ctx.globalAlpha = 1;
-        ctx.restore();
+    }
+    updatePortalParticles(dt) {
+        for (const portalId in this.portalParticles) {
+            const portal = this.portalParticles[portalId];
+            for (const key in portal) {
+                if (key === "count") continue;
+                const p = portal[key];
+                p.update(dt);
+            }
+        }
+    }
+    drawPortalParticles(ctx) {
+        for (const portalId in this.portalParticles) {
+            const portal = this.portalParticles[portalId];
+            for (const key in portal) {
+                if (key === "count") continue;
+                const p = portal[key];
+                p.draw(ctx);
+            }
+        }
+    }
+}
+
+
+class PortalParticle {
+    constructor(name, x,y,color, vx, vy, despawn){
+        this.name = name;
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.vx = vx;
+        this.vy = vy;
+        this.lastX = x;
+        this.lastY = y;
+        this.despawn = despawn;
+    }
+    draw(ctx) {
+        ctx.fillStyle = `rgba(${(this.color >> 16) & 0xFF}, ${(this.color >> 8) & 0xFF}, ${this.color & 0xFF}, 1)`;
+        const px = this.x;
+        const py = this.y;
+        ctx.fillRect(px - 2, py - 2, 4, 4);
+    }
+    update(delta){
+        this.lastX = this.x;
+        this.lastY = this.y;
+        this.x += this.vx * delta;
+        this.y += this.vy * delta;
+
+        if(this.x < 0 || this.y < 0 || this.x > window.innerWidth || this.y > window.innerHeight){
+            this.despawn();
+        }
+    }
+    collide(px1,py1,px2,py2, normal){
+        // robust segment-segment intersection between movement (last -> current)
+        // and edge (px1,py1 -> px2,py2). Returns collision point, normal angle
+        // (uses provided `normal` angle if given) and `entering` boolean.
+        const relVX = this.x - this.lastX;
+        const relVY = this.y - this.lastY;
+        const edgeX = px2 - px1;
+        const edgeY = py2 - py1;
+
+        const denom = relVX * edgeY - relVY * edgeX;
+        if (denom === 0) return null; // parallel or no relative motion
+
+        const dx = px1 - this.lastX;
+        const dy = py1 - this.lastY;
+
+        const s = (dx * edgeY - dy * edgeX) / denom; // along movement [0..1]
+        const t = (dx * relVY - dy * relVX) / denom; // along edge [0..1]
+
+        if (s < 0 || s > 1 || t < 0 || t > 1) return null; // no intersection within segments
+
+        const cx = this.lastX + relVX * s;
+        const cy = this.lastY + relVY * s;
+
+        const angle = (typeof normal === 'number')
+            ? normal
+            : Math.atan2(edgeY, edgeX) + Math.PI / 2;
+
+        const nX = Math.cos(angle);
+        const nY = Math.sin(angle);
+
+        // movement dot normal: >0 means moving into the normal direction (into shape)
+        const dot = relVX * nX + relVY * nY;
+        const entering = dot > 0;
+
+        return { cx, cy, angle, entering };
     }
 }
