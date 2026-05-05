@@ -14,6 +14,9 @@ class Program {
 
         // We can put non-data dependent here still
         this.lastTime = 0;
+        this.accumulator = 0;
+        this.fixedDelta = 1000 / 60; // 60hz fixed step for deterministic collisions
+        this.maxSubSteps = 10; // cap catch-up work per frame
 
         this.selectedRot = 0;
         this.input = new Input();
@@ -87,15 +90,21 @@ class Program {
             }
         } catch (e) { console.warn('Failed to attach back button handler', e); }
         // Start the main loop
+        this.lastTime = performance.now();
         requestAnimationFrame(this.loop.bind(this));        
     }
     loop() {
         const now = performance.now();
-        const deltaTime = Math.min(100, now - this.lastTime); // Cap deltaTime to avoid huge jumps
+        const maxFrameDelta = 100; // ms cap to avoid huge jumps
+        const frameDelta = Math.min(maxFrameDelta, now - this.lastTime);
         this.lastTime = now;
-        this.update(deltaTime);
+        this.accumulator = Math.min(this.accumulator + frameDelta, this.fixedDelta * this.maxSubSteps);
+        while (this.accumulator >= this.fixedDelta) {
+            this.update(this.fixedDelta);
+            this.accumulator -= this.fixedDelta;
+        }
         this.draw();
-        // Update and render logic goes here, using deltaTime for smooth animations
+        // Render uses the latest fixed-step simulation state.
 
         requestAnimationFrame(this.loop.bind(this));
     }

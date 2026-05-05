@@ -36,7 +36,7 @@
         ["conveyor-mergeright",9999],
         ["seller",9999],
         ["portal-in",9999],
-        ["portal",9999], 
+        ["portal",9999],
         ["glass",9999]
     ],
     "spawner-items": [
@@ -44,9 +44,15 @@
         {"color":4278190335,"count":999},
         {"color":16711935,"count":999},
         {"color":65535,"count":999},
-        {"color":"#000000FF","count":999}
+        {"color":255,"count":999}
     ],
     "Placed": {
+        "3.2": {
+            "type": "spawner #FFFFFFFF",
+            "rot": 180
+        },
+        "3.3": "portal-in",
+        "3.4": "spawner #FFFFFFFF",
         "6.2": "nothing",
         "6.3": "nothing",
         "6.4": "nothing",
@@ -54,6 +60,11 @@
         "7.3": "seller",
         "8.2": "nothing",
         "8.3": "nothing",
-        "8.4": "nothing"
+        "8.4": "nothing",
+        "12.4": {
+            "type": "spawner #FFFFFFFF",
+            "rot": 180
+        },
+        "12.5": "portal"
     }
 }

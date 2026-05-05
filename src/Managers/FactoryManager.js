@@ -179,6 +179,10 @@ export default class FactoryManager {
             if (wasCopied) this.copiedCells.delete(key);
         }
     }
+    isSelected(key) {
+        console.log("checking if selected", key, this.selectedCells);
+        return this.selectedCells.has(key);
+    }
     clearSelection() {
         const didClear = this.selectedCells.size > 0;
         // visual feedback: spawn corner particles for each removed cell

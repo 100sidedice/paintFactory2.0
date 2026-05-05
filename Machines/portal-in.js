@@ -1,5 +1,4 @@
 import portal from './portal.js';
-import Item from '../src/World/Item.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
 import { intHex, stringHex } from '../src/Helpers/colorHelpers.js';
@@ -11,7 +10,6 @@ export default class portalIn extends portal {
         super(name, machineData, manager);
         this.spawnDelay = 0;
         this.spawnDelayMax = 10; // millis, time between individual particles in a burst
-        this._count = 0; // for unique item IDs
     }
     rotate(offsetX, offsetY) {
         const rot = (this.data.rot || 0) * Math.PI / 180; // convert degrees to radians
@@ -49,17 +47,12 @@ export default class portalIn extends portal {
 
         for (const out of outputs) {
             if (current >= maxItems) break;
-            const id = `item_${Date.now()}_${this._count++}`;
-            const x = (out.data?.x ?? 0) + 0.5;
-            const y = (out.data?.y ?? 0) + 0.5;
-            const clone = new Item(id, x, y, sourceItemColor, this.manager);
-            this.manager.items[id] = clone;
-            current++;
             // need to calculate speed based on angle to target portal
             const angle = Math.atan2(out.data.y - this.data.y, out.data.x - this.data.x);
-            const speedX = Math.cos(angle) * 1;// very fast test to check that collions don't skip at speeds
-            const speedY = Math.sin(angle) * 1;
+            const speedX = Math.cos(angle) * 0.007;// very fast test to check that collions don't skip at speeds
+            const speedY = Math.sin(angle) * 0.007;
             this.manager.ParticleManager.spawnPortalParticle(`${this.data.x},${this.data.y}`, this.data.x, this.data.y, sourceItemColor, speedX, speedY, this.manager);
+            current++;
             
         }
     }
