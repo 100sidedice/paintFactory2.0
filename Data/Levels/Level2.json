@@ -1,7 +1,7 @@
 {  
     "Header": "Multiple paths?!",
     "Description": "Create a path to sell 20 blue, and 20 red dye",
-    "funny": "Click the colored text on the spawner to change the color it spawns!",
+    "funny": "Click the arrow next to the spawner to change it's color.",
     "Hints": [
         "Click a machine in the sidebar to select it, then click on the grid to place it",
         "Right click a machine in the sidebar to see it's description",
