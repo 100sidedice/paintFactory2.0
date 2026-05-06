@@ -73,9 +73,12 @@
             "level8": {"name": "level8", "type": "json"},
             "level9": {"name": "level9", "type": "json"},
             "level10": {"name": "level10", "type": "json"},
+            "level11": {"name": "level11", "type": "json"},
+            "level12": {"name": "level12", "type": "json"},
+            "level13": {"name": "level13", "type": "json"},
+            "level14": {"name": "level14", "type": "json"},
+            "level15": {"name": "level15", "type": "json"},
             "level16": {"name": "level16", "type": "json"},
-            "level19": {"name": "level19", "type": "json"},
-            "level20": {"name": "level20", "type": "json"},
             "level35": {"name": "level35", "type": "json"}
         }
     }
