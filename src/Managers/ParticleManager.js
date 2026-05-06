@@ -507,7 +507,7 @@ class BeamParticle {
     }
     draw(ctx){
         if(!this.targetParticle) return; // no target, so nothing to draw.
-        ctx.fillStyle = stringHex(this.color);
+        ctx.strokeStyle = stringHex(this.color);
         const size = window.innerHeight/9;
         // draw a line between recorded positions. If no recorded positions, draw a dot at the target particle.
         if (this.recordedPositions.length > 1) {
