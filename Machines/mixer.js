@@ -164,22 +164,13 @@ export default class mixer extends MachineBase {
             // offsets in tile units: left (-0.2,0), up (0,-0.2), right (0.2,0)
             
             if (r > 0) {
-                const [ox, oy] = rotOffset(-0.2, 0, this.data.rot);
-                const idR = `item_${Date.now()}_${this._count++}`;
-                const itemR = new Item(idR, cx + ox, cy + oy, rCol, this.manager);
-                this.manager.items[idR] = itemR;
+                this.spawnItem(-2, 0, rCol);
             }
             if (g > 0) {
-                const [ox, oy] = rotOffset(0, -0.2, this.data.rot);
-                const idG = `item_${Date.now()}_${this._count++}`;
-                const itemG = new Item(idG, cx + ox, cy + oy, gCol, this.manager);
-                this.manager.items[idG] = itemG;
+                this.spawnItem(0, -2, gCol);
             }
             if (b > 0) {
-                const [ox, oy] = rotOffset(0.2, 0, this.data.rot);
-                const idB = `item_${Date.now()}_${this._count++}`;
-                const itemB = new Item(idB, cx + ox, cy + oy, bCol, this.manager);
-                this.manager.items[idB] = itemB;
+                this.spawnItem(2, 0, bCol);
             }
 
             return;
