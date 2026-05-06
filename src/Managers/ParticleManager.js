@@ -169,7 +169,7 @@ export default class ParticleManager {
 
 
 class PortalParticle {
-    constructor(name, x,y,color, vx, vy, despawn, manager){
+    constructor(name, x,y,color, vx, vy, despawn, manager, portalcolor){
         this.name = name;
         this.x = x;
         this.y = y;
@@ -183,9 +183,10 @@ class PortalParticle {
         this.inGlass = false;
         this.glassAxis = null; // 'x' or 'y'
         this.beam = null;
+        this.portalcolor = portalcolor;
     }
     draw(ctx) {
-        ctx.fillStyle = `rgba(${(this.color >> 16) & 0xFF}, ${(this.color >> 8) & 0xFF}, ${this.color & 0xFF}, 1)`;
+        ctx.fillStyle = stringHex(this.color);
         const px = this.x;
         const py = this.y;
         this.winSize = window.innerHeight/9;
@@ -215,6 +216,16 @@ class PortalParticle {
             if (col.entering === 'center' && col.type === 'portal') {
                 const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
                 if (Number.isFinite(cellX) && Number.isFinite(cellY)) {
+                    if (this._spawnItemAtCell(cellX, cellY)) {
+                        this.despawn();
+                        return;
+                    }
+                }
+            }
+            if (col.entering === 'center' && col.type === 'portal-in') {
+                const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
+                if (Number.isFinite(cellX) && Number.isFinite(cellY)) {
+                    if(this.manager.getMachine(cellX, cellY).color === this.portalcolor) continue; // only allow entry if portal colors don't match, otherwise we can get stuck in an infinite loop of portal particles bouncing back and forth between 2 same-color portals.
                     if (this._spawnItemAtCell(cellX, cellY)) {
                         this.despawn();
                         return;

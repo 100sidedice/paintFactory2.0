@@ -51,7 +51,7 @@ export default class portalIn extends portal {
             const angle = Math.atan2(out.data.y - this.data.y, out.data.x - this.data.x);
             const speedX = Math.cos(angle) * 0.007;// very fast test to check that collions don't skip at speeds
             const speedY = Math.sin(angle) * 0.007;
-            this.manager.ParticleManager.spawnPortalParticle(`${this.data.x},${this.data.y}`, this.data.x, this.data.y, sourceItemColor, speedX, speedY, this.manager);
+            this.manager.ParticleManager.spawnPortalParticle(`${this.data.x},${this.data.y}`, this.data.x, this.data.y, sourceItemColor, speedX, speedY, this.manager, this.color);
             current++;
             
         }
