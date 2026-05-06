@@ -227,6 +227,7 @@ export default class SidebarManager {
     }
 
     populateSidebar(levelData) {
+        const previousSelection = this.selectedIndex;
         this._stopIconAnimationLoop();
         this._destroySpawnerPanel();
         this.sidebar.innerHTML = '';
@@ -267,6 +268,14 @@ export default class SidebarManager {
         }
 
         this._ensureSpawnerPanel();
+        this.selectedIndex = -1;
+        if (this.slots.length > 0) {
+            const clampedIndex = Math.min(
+                Math.max(previousSelection, 0),
+                this.slots.length - 1,
+            );
+            this.setSelection(clampedIndex);
+        }
         this._startIconAnimationLoop();
         this._refreshAllSlots();
         requestAnimationFrame(() => this._syncSpawnerPanelPlacement());
@@ -1095,13 +1104,21 @@ export default class SidebarManager {
     }
 
     setSelection(index) {
+        if (!this.slots || this.slots.length === 0) {
+            this.selectedIndex = -1;
+            return;
+        }
         if (index < 0 || index >= this.slots.length) return;
         if (this.selectedIndex === index) return;
-        if (this.selectedIndex >= 0) {
+        if (this.selectedIndex >= 0 && this.selectedIndex < this.slots.length) {
             const prev = this.slots[this.selectedIndex];
-            prev.style.setProperty('--border_color', '#00000066');
+            if (prev) prev.style.setProperty('--border_color', '#00000066');
         }
         const el = this.slots[index];
+        if (!el) {
+            this.selectedIndex = -1;
+            return;
+        }
         const type = el.dataset.machineType;
         const remaining = this._getRemainingCount(type);
         if (remaining <= 0) el.style.setProperty('--border_color', '#FFA500FF');

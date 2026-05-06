@@ -191,7 +191,7 @@ export default class LevelManager {
             console.debug('LevelManager: devMode ->', this.devMode);
         }, 'level-manager', 0);
         // F3: prompt to add a new goal when in dev mode
-        this.input.addBinding('keyboard', 'F3', 'press', () => {
+        this.input.addBinding('keyboard', 'F5', 'press', () => {
             if (!this.devMode) return;
             const input = prompt('Add goal (examples: dye,#RRGGBBAA,100 OR machine,conveyor,10 OR time,100)');
             if (!input) return;
@@ -223,7 +223,7 @@ export default class LevelManager {
             if (this.goalManager && typeof this.goalManager.populate === 'function') this.goalManager.populate(goalsRef);
         }, 'level-manager', 0);
         // F5: prompt to add a new slot when in dev mode
-        this.input.addBinding('keyboard', 'F5', 'press', () => {
+        this.input.addBinding('keyboard', 'F3', 'press', () => {
             if (!this.devMode) return;
             const input = prompt('Add slot (examples: conveyor, 999 OR spawner, 999, [[#000000FF,999]])');
             if (!input) return;
