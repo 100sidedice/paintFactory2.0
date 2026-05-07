@@ -24,18 +24,52 @@ export default class mixer extends MachineBase {
         this.splitTime = 0;
         this.splitTimeMax = 1000; // ms until return to normal logic
         this._splitColors = null; // { r: int32, g: int32, b: int32 } while splitting
+        // corruption / flicker state (mirror portal/cloner style)
+        this.corrupted = false;
+        this.spreadTime = 0;
+        this.nextSpread = 1;
     }
 
     _mixColors(color1, color2) {
+        //_mixColors(color1, color2) {
         // Special case: black + anything = half the color
         const isBlack = (c) => (intHex(c) & 0xFFFFFF00) === 0x00000000; // RGB channels are zero
         
+        // If mixer is corrupted, perform subtraction (left - right) instead of additive mix
+        if (this.corrupted) {
+            const v1 = intHex(color1) >>> 0;
+            const v2 = intHex(color2) >>> 0;
+
+            const r1 = (v1 >>> 24) & 0xFF;
+            const g1 = (v1 >>> 16) & 0xFF;
+            const b1 = (v1 >>> 8) & 0xFF;
+            const a1 = v1 & 0xFF;
+
+            const r2 = (v2 >>> 24) & 0xFF;
+            const g2 = (v2 >>> 16) & 0xFF;
+            const b2 = (v2 >>> 8) & 0xFF;
+            const a2 = v2 & 0xFF;
+
+            const rr = Math.max(0, r1 - r2) & 0xFF;
+            const gg = Math.max(0, g1 - g2) & 0xFF;
+            const bb = Math.max(0, b1 - b2) & 0xFF;
+            const aa = Math.max(a1, a2) & 0xFF;
+
+            return (
+                ((rr & 0xFF) << 24) |
+                ((gg & 0xFF) << 16) |
+                ((bb & 0xFF) << 8) |
+                (aa & 0xFF)
+            ) >>> 0;
+        }
+
         if (isBlack(color1)) {
             return this._halveColor(color2);
         }
         if (isBlack(color2)) {
             return this._halveColor(color1);
         }
+
         // Normal mixing: additive color
         return addHex32(color1, color2);
     }
@@ -68,6 +102,17 @@ export default class mixer extends MachineBase {
     }
 
     update(delta) {
+        // corruption flicker handling
+        if (this.corrupted) {
+            if (this.spreadTime >= this.nextSpread * 1.2) {
+                this.spreadTime = 0;
+                this.nextSpread = 100 + Math.random() * 200;
+            }
+            this.spreadTime += delta;
+        } else {
+            this.spreadTime = 0;
+            this.nextSpread = 1;
+        }
         super.update(delta);
         if(this.splitting){
             this.splitTime -= delta;
@@ -157,9 +202,11 @@ export default class mixer extends MachineBase {
         }
     }
     draw(ctx, x, y, size=16) {
-        if (this.manager.paused) {
+        const flickerGrayFrame = this.corrupted && this.spreadTime >= this.nextSpread;
+
+        if (this.manager.paused || flickerGrayFrame) {
             var img = this.manager?.AssetManager?.get('machines-image-grayed');
-        }else {
+        } else {
             var img = this.manager?.AssetManager?.get('machines-image');
         }
         if (!img) { super.draw(ctx, x, y, size); return; }
@@ -194,22 +241,46 @@ export default class mixer extends MachineBase {
             leftColor = this._splitColors.r;
             rightColor = this._splitColors.b;
         }
-        const tileCanvas = getColorizedTile(img, sx, sy, tw, th, mainColor, mainMask, leftColor, leftMask, rightColor, rightMask);
-        // draw centered similar to base Machine
-        if(!this.rotating){
-            ctx.drawImage(tileCanvas, 0, 0, tw, th, x*size - size/2, y*size - size/2, size, size);
-        } else {
-            ctx.save();
-            ctx.translate(x*size, y*size);
-            // Apply an animated counter-rotation while the global canvas has already been rotated
-            // by `machine.data.rot` in FactoryManager. `extraRotation` is in degrees, so convert to radians.
-            if(this.data.rot === 0 && this.rotating === -1) {
-                ctx.rotate((this.extraRotation - this.rotating * Math.PI/2)+2*Math.PI);
+        // If we're in a corruption flicker frame, cancel masking and draw the grayscale source
+        if (flickerGrayFrame) {
+            if (!this.rotating) {
+                ctx.drawImage(img, sx, sy, tw, th, x*size - size/2, y*size - size/2, size, size);
             } else {
-                ctx.rotate((this.extraRotation - this.rotating * Math.PI/2));
+                ctx.save();
+                ctx.translate(x*size, y*size);
+
+                if(this.data.rot === 0 && this.rotating === -1) {
+                    ctx.rotate((this.extraRotation - this.rotating * Math.PI/2)+2*Math.PI);
+                } else {
+                    ctx.rotate((this.extraRotation - this.rotating * Math.PI/2));
+                }
+
+                ctx.drawImage(img, sx, sy, tw, th, -size/2, -size/2, size, size);
+                ctx.restore();
             }
-            ctx.drawImage(tileCanvas, 0, 0, tw, th, -size/2, -size/2, size, size);
-            ctx.restore();
+        } else {
+            if(this.corrupted){
+                var tileCanvas = getColorizedTile(img, sx, sy, tw, th, mainColor, mainMask, leftColor, leftMask, rightColor, rightMask, 0x813D9CFF, 0xFFC800FF, 0x613583FF, 0xCBA000FF);
+            }
+            else {
+                var tileCanvas = getColorizedTile(img, sx, sy, tw, th, mainColor, mainMask, leftColor, leftMask, rightColor, rightMask);
+            }
+            // draw centered similar to base Machine
+            if(!this.rotating){
+                ctx.drawImage(tileCanvas, 0, 0, tw, th, x*size - size/2, y*size - size/2, size, size);
+            } else {
+                ctx.save();
+                ctx.translate(x*size, y*size);
+
+                if(this.data.rot === 0 && this.rotating === -1) {
+                    ctx.rotate((this.extraRotation - this.rotating * Math.PI/2)+2*Math.PI);
+                } else {
+                    ctx.rotate((this.extraRotation - this.rotating * Math.PI/2));
+                }
+
+                ctx.drawImage(tileCanvas, 0, 0, tw, th, -size/2, -size/2, size, size);
+                ctx.restore();
+            }
         }
     }
 }

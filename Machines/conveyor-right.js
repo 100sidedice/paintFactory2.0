@@ -1,8 +1,8 @@
-import MachineBase from './Machine.js';
+import ConveyorBase from './conveyor.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
 
-export default class conveyor extends MachineBase {
+export default class conveyor extends ConveyorBase {
     constructor(name, machineData, manager) {
         super(name, machineData, manager);
     }
@@ -10,6 +10,9 @@ export default class conveyor extends MachineBase {
         super.update(delta);
     }
     onItemCollision(item, size) {
+        const colorState = this._handleItemPressColorState(item, size);
+        if (colorState.blocked) return;
+
         const collisionA = this.data['collision-up'];
         const collisionB = this.data['collision-right'];
         const collidingA = isItemColliding(this.data.x, this.data.y, item, size, collisionA, this.data.rot);
@@ -22,4 +25,5 @@ export default class conveyor extends MachineBase {
             applyMovement(true, item, speed, this.data.rot+90);
         }
     }
+    
 }

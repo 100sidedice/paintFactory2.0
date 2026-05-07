@@ -264,6 +264,7 @@ class PortalParticle {
                     const machine = this.manager.getMachine(cellX, cellY);
                     if (machine && typeof machine.receiveBeamColor === 'function') {
                         machine.receiveBeamColor(this.color);
+                        this.despawn();
                     }
                 }
             }

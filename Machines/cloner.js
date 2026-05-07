@@ -11,9 +11,25 @@ export default class cloner extends MachineBase {
         this.data.color = this.color;
         this._propagateAcc = 0;
         this._propagateInterval = 150;
+
+        // corruption flicker state (mirrors portal timing style)
+        this.corrupted = false;
+        this.spreadTime = 0;
+        this.nextSpread = 1;
     }
 
     update(delta) {
+        if (this.corrupted) {
+            if (this.spreadTime >= this.nextSpread * 1.2) {
+                this.spreadTime = 0;
+                this.nextSpread = 100 + Math.random() * 200;
+            }
+            this.spreadTime += delta;
+        } else {
+            this.spreadTime = 0;
+            this.nextSpread = 1;
+        }
+
         super.update(delta);
         this._propagateAcc += delta;
         if (this._propagateAcc >= this._propagateInterval) {
@@ -22,8 +38,30 @@ export default class cloner extends MachineBase {
         }
     }
 
+    _invertColorRGBPreserveAlpha(color) {
+        const v = intHex(color) >>> 0;
+        const r = (v >>> 24) & 0xFF;
+        const g = (v >>> 16) & 0xFF;
+        const b = (v >>> 8) & 0xFF;
+        const a = v & 0xFF;
+        const ir = (255 - r) & 0xFF;
+        const ig = (255 - g) & 0xFF;
+        const ib = (255 - b) & 0xFF;
+        return (((ir & 0xFF) << 24) | ((ig & 0xFF) << 16) | ((ib & 0xFF) << 8) | (a & 0xFF)) >>> 0;
+    }
+
     receiveBeamColor(color) {
         const next = intHex(color);
+
+        // Black beam toggles corruption and inverts the cloner's current RGB channels.
+        const isBlackBeam = (next & 0xFFFFFF00) === 0;
+        if (isBlackBeam) {
+            this.corrupted = !this.corrupted;
+            this.data.color = this.color;
+            this._propagateColorToNeighbors();
+            return;
+        }
+
         if (next === this.color) return;
         this.color = next;
         this.data.color = this.color;
@@ -40,6 +78,12 @@ export default class cloner extends MachineBase {
             if (!machine) continue;
 
             if (machine.name === 'portal' || machine.name === 'portal-in') {
+                // If cloner is corrupted, immediately mark touching portals as corrupted
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                }
                 if (typeof machine._absorbPortalColor === 'function') {
                     machine._absorbPortalColor(this.color);
                 } else {
@@ -50,16 +94,43 @@ export default class cloner extends MachineBase {
             }
 
             if (machine.name === 'mixer') {
+                // if cloner is corrupted, mark mixer corrupted so it subtracts and flickers
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                }
                 this.fillMixerChannels(machine, dir);
                 continue;
             }
             if (machine.name === 'mixer-right') {
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                }
                 this.fillMixerRightChannels(machine, dir);
                 continue;
             }
             if (machine.name === 'mixer-left') {
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                }
                 this.fillMixerLeftChannels(machine, dir);
                 continue;
+            }
+            if (machine.name.split('-')[0] === 'conveyor') {
+                // propagate color
+                machine.color = this.color;
+                machine.lastColorChange = performance.now();
+                // if cloner is corrupted, mark conveyors corrupted and rotate them counter-clockwise immediately
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                }
             }
         }
     }
@@ -211,7 +282,8 @@ export default class cloner extends MachineBase {
     }
 
     draw(ctx, x, y, size = 16) {
-        if (this.manager.paused) {
+        const flickerGrayFrame = this.spreadTime >= this.nextSpread;
+        if (this.manager.paused || flickerGrayFrame) {
             var img = this.manager?.AssetManager?.get('machines-image-grayed');
         } else {
             var img = this.manager?.AssetManager?.get('machines-image');
@@ -225,16 +297,23 @@ export default class cloner extends MachineBase {
         const tw = 16;
         const th = 16;
         let cols = Math.max(1, Math.floor(img.width / tw));
-        if (this.manager.paused) cols = 1;
+        if (this.manager.paused || this.spreadTime >= this.nextSpread) cols = 1;
         const tileIndex = row * cols;
         const frameCount = Math.max(1, this.data.texture?.frameCount ?? cols);
         const frameLimit = this.manager.paused ? 1 : Math.min(cols, frameCount);
         const sx = Math.floor((performance.now() * (this.data.texture?.fps ?? 8)) / 1000 % frameLimit) * tw;
         const sy = Math.floor(tileIndex / cols) * th;
 
-        const tileCanvas = getColorizedTile(img, sx, sy, tw, th, this.color, DEFAULT_CLONER_COLOR);
+        // Cancel masking on grayscale corruption flicker frames.
+        const drawSource = flickerGrayFrame
+            ? img
+            : getColorizedTile(img, sx, sy, tw, th, this.color, DEFAULT_CLONER_COLOR);
         if (!this.rotating) {
-            ctx.drawImage(tileCanvas, 0, 0, tw, th, x * size - size / 2, y * size - size / 2, size, size);
+            if (flickerGrayFrame) {
+                ctx.drawImage(drawSource, sx, sy, tw, th, x * size - size / 2, y * size - size / 2, size, size);
+            } else {
+                ctx.drawImage(drawSource, 0, 0, tw, th, x * size - size / 2, y * size - size / 2, size, size);
+            }
         } else {
             ctx.save();
             ctx.translate(x * size, y * size);
@@ -243,7 +322,11 @@ export default class cloner extends MachineBase {
             } else {
                 ctx.rotate((this.extraRotation - this.rotating * Math.PI / 2));
             }
-            ctx.drawImage(tileCanvas, 0, 0, tw, th, -size / 2, -size / 2, size, size);
+            if (flickerGrayFrame) {
+                ctx.drawImage(drawSource, sx, sy, tw, th, -size / 2, -size / 2, size, size);
+            } else {
+                ctx.drawImage(drawSource, 0, 0, tw, th, -size / 2, -size / 2, size, size);
+            }
             ctx.restore();
         }
     }
