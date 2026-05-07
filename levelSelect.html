@@ -23,25 +23,41 @@
 
         const tbody = document.querySelector('#levels tbody');
         let level = 1;
+
         // load completed levels from localStorage (array of 1-based numbers)
         let completedLevels = [];
-        try { completedLevels = JSON.parse(localStorage.getItem('pf_completedLevels') || '[]') || []; } catch (e) { completedLevels = []; }
-        for (let r = 0; r < 7; r++) {
+        try {
+            completedLevels = JSON.parse(localStorage.getItem('pf_completedLevels') || '[]') || [];
+        } catch (e) {
+            completedLevels = [];
+        }
+
+        // build main grid (30 levels = 6 rows × 5 cols)
+        for (let r = 0; r < 6; r++) {
             const tr = document.createElement('tr');
+
             for (let c = 0; c < 5; c++) {
                 const td = document.createElement('td');
                 const btn = document.createElement('button');
-                btn.addEventListener('click', (function (n) {
-                return function () {
-                    try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
-                    window.location.href = 'game.html';
-                };
-                })(level));
+
                 btn.textContent = level;
+
+                btn.addEventListener('click', (function (n) {
+                    return function () {
+                        try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
+                        window.location.href = 'game.html';
+                    };
+                })(level));
+
                 // mark completed levels
-                try { if (Array.isArray(completedLevels) && completedLevels.includes(level)) btn.classList.add('completed'); } catch (e) {}
-                // check whether a level file exists; if not, mark as missing and disable
-                (function(b, n){
+                try {
+                    if (Array.isArray(completedLevels) && completedLevels.includes(level)) {
+                        btn.classList.add('completed');
+                    }
+                } catch (e) {}
+
+                // check whether level file exists
+                (function (b, n) {
                     const url = `Data/Levels/Level${n}.json`;
                     fetch(url, { method: 'GET', cache: 'no-store' }).then(r => {
                         if (!r.ok) {
@@ -55,19 +71,67 @@
                         b.setAttribute('aria-disabled', 'true');
                     });
                 })(btn, level);
+
+                // (duplicate listener kept as in your original code)
                 btn.addEventListener('click', (function (n) {
-                return function () {
-                    try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
-                    window.location.href = 'game.html';
-                };
+                    return function () {
+                        try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
+                        window.location.href = 'game.html';
+                    };
                 })(level));
+
                 td.appendChild(btn);
                 tr.appendChild(td);
                 level++;
             }
+
             tbody.appendChild(tr);
         }
+
+        // ----------------------------
+        // Level 31 (new row)
+        // ----------------------------
+        const n = 31;
+
+        const tr31 = document.createElement('tr');
+        const td31 = document.createElement('td');
+        const btn31 = document.createElement('button');
+
+        btn31.textContent = n;
+
+        btn31.addEventListener('click', function () {
+            try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
+            window.location.href = 'game.html';
+        });
+
+        // completed check
+        try {
+            if (Array.isArray(completedLevels) && completedLevels.includes(n)) {
+                btn31.classList.add('completed');
+            }
+        } catch (e) {}
+
+        // existence check
+        (function (b, n) {
+            const url = `Data/Levels/Level${n}.json`;
+            fetch(url, { method: 'GET', cache: 'no-store' }).then(r => {
+                if (!r.ok) {
+                    b.classList.add('missing');
+                    b.disabled = true;
+                    b.setAttribute('aria-disabled', 'true');
+                }
+            }).catch(() => {
+                b.classList.add('missing');
+                b.disabled = true;
+                b.setAttribute('aria-disabled', 'true');
+            });
+        })(btn31, n);
+
+        td31.appendChild(btn31);
+        tr31.appendChild(td31);
+        tbody.appendChild(tr31);
     </script>
+
     <script src="Pages/levelSelect.js" type="module"></script>
 </body>
 </html>
