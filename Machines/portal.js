@@ -15,9 +15,22 @@ export default class portal extends MachineBase {
         this._count = 0;
         this._colorContributions = [];
         this.color = intHex(machineData?.color ?? DEFAULT_PORTAL_COLOR);
+        this.corrupted = false; // whether this portal is currently corrupted (black) or not, used for visual effects and to determine if it should teleport or not
+        this.spreadTime = 0; // last time we had a corruption flicker
+        this.nextSpread = 1; // when the next corruption flicker should happen
     }
 
     update(delta) {
+        if(this.corrupted){
+            if(this.spreadTime >= this.nextSpread*1.2){
+                this.spreadTime = 0;
+                this.nextSpread = 100 + Math.random() * 200; // randomize next flicker time a bit
+            }
+            this.spreadTime += delta; // we do this after so that draw can flicker - if it was before it would never get a chance to draw the flicker before resetting the timer
+        }else{
+            this.spreadTime = 0;
+            this.nextSpread = 1; // must be above at first 
+        }
         super.update(delta);
         this._tickPortalColor(delta);
     }
@@ -99,7 +112,7 @@ export default class portal extends MachineBase {
     }
 
     draw(ctx, x, y, size = 16) {
-        const img = this.manager.paused
+        const img = (this.manager.paused || this.spreadTime >= this.nextSpread)
             ? this.manager?.AssetManager?.get('machines-image-grayed')
             : this.manager?.AssetManager?.get('machines-image');
         if (!img) {
@@ -111,7 +124,7 @@ export default class portal extends MachineBase {
         const tw = 16;
         const th = 16;
         let cols = Math.max(1, Math.floor(img.width / tw));
-        if (this.manager.paused) cols = 1;
+        if (this.manager.paused || this.spreadTime >= this.nextSpread) cols = 1;
         const tileIndex = row * cols;
         const frameCount = Math.max(1, this.data.texture?.frameCount ?? cols);
         const frameLimit = this.manager.paused ? 1 : Math.min(cols, frameCount);

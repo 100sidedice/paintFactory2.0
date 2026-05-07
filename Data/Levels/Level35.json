@@ -37,7 +37,7 @@
         ["seller",9999],
         ["portal-in",9999],
         ["portal",9999],
-        ["glass",9999]
+        ["nothing",9999]
     ],
     "spawner-items": [
         {"color":4294967295,"count":999},
@@ -47,17 +47,22 @@
         {"color":255,"count":999}
     ],
     "Placed": {
-        "3.2": {
+        "3.5": {
             "type": "spawner #FFFFFFFF",
             "rot": 180
         },
-        "3.3": "portal-in",
-        "3.4": "spawner #FFFFFFFF",
+        "3.6": "portal-in",
+        "3.7": "spawner #FFFFFFFF",
         "6.2": "nothing",
         "6.3": "nothing",
         "6.4": "nothing",
         "7.2": "nothing",
         "7.3": "seller",
+        "7.5": {
+            "type": "spawner #FF0000FF",
+            "rot": 180
+        },
+        "7.6": "portal-in",
         "8.2": "nothing",
         "8.3": "nothing",
         "8.4": "nothing",

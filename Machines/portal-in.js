@@ -10,6 +10,7 @@ export default class portalIn extends portal {
         super(name, machineData, manager);
         this.spawnDelay = 0;
         this.spawnDelayMax = 10; // millis, time between individual particles in a burst
+        
     }
     rotate(offsetX, offsetY) {
         const rot = (this.data.rot || 0) * Math.PI / 180; // convert degrees to radians
@@ -38,7 +39,9 @@ export default class portalIn extends portal {
     }
 
     _spawnTeleportedItems(sourceItemColor) {
-        const outputs = this._getMatchingOutputs();
+        const routeColor = this.corrupted ? sourceItemColor : this.color;
+        const particleColor = this.corrupted ? this.color : sourceItemColor;
+        const outputs = this._getMatchingOutputs(routeColor, this.corrupted);
         if (!outputs.length) return;
 
         const cfg = this.manager?.DataManager?.config || {};
@@ -51,16 +54,16 @@ export default class portalIn extends portal {
             const angle = Math.atan2(out.data.y - this.data.y, out.data.x - this.data.x);
             const speedX = Math.cos(angle) * 0.007;// very fast test to check that collions don't skip at speeds
             const speedY = Math.sin(angle) * 0.007;
-            this.manager.ParticleManager.spawnPortalParticle(`${this.data.x},${this.data.y}`, this.data.x, this.data.y, sourceItemColor, speedX, speedY, this.manager, this.color);
+            this.manager.ParticleManager.spawnPortalParticle(`${this.data.x},${this.data.y}`, this.data.x, this.data.y, particleColor, speedX, speedY, this.manager);
             current++;
             
         }
     }
 
-    _getMatchingOutputs() {
-        if (this._isUncoloredPortal()) return [];
-        const own = intHex(this.color) >>> 0;
-        const ownRGB = (own >>> 8) & 0xFFFFFF;
+    _getMatchingOutputs(routeColor = this.color, allowBlackMatch = false) {
+        const route = intHex(routeColor) >>> 0;
+        const routeRGB = (route >>> 8) & 0xFFFFFF;
+        if (routeRGB === 0 && !allowBlackMatch) return [];
 
         const portalCache = this.manager?.getPortalMachineCache?.() ?? { outputs: [] };
         const candidates = portalCache.outputs || [];
@@ -69,8 +72,8 @@ export default class portalIn extends portal {
             if (!machine || machine === this) continue;
             const mc = intHex(machine.color ?? machine.data?.color ?? 0x000000FF) >>> 0;
             const mcRGB = (mc >>> 8) & 0xFFFFFF;
-            if (mcRGB === 0) continue;
-            if (mcRGB !== ownRGB) continue;
+            if (mcRGB === 0 && !allowBlackMatch) continue;
+            if (mcRGB !== routeRGB) continue;
             outputs.push(machine);
         }
         return outputs;
@@ -82,9 +85,7 @@ export default class portalIn extends portal {
         const collidingTele = isItemColliding(this.data.x, this.data.y, item, size, tele, this.data.rot);
         if (collidingTele) {
             this.manager.removeItem(item);
-            if (!this._isUncoloredPortal()) {
-                this._spawnTeleportedItems(item.color);
-            }
+            this._spawnTeleportedItems(item.color);
             return;
         }
         this._handleConveyorCollision(item, size);
@@ -94,6 +95,7 @@ export default class portalIn extends portal {
         super.draw(ctx, x, y, size);
     }
     update(delta) {
+        
         super.update(delta);
     }
 }

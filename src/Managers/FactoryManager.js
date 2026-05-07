@@ -524,6 +524,15 @@ export default class FactoryManager {
     }
 
     getMachine(x,y) {
+        if(!y){
+            // if only one, get by string key
+            const [keyXRaw, keyYRaw] = String(x).split(',');
+            const keyX = parseInt(keyXRaw, 10);
+            const keyY = parseInt(keyYRaw, 10);
+            if (Number.isNaN(keyX) || Number.isNaN(keyY)) return null;
+            if (!this.grid || !this.grid[keyX] || !this.grid[keyX][keyY]) return null;
+            return this.grid[keyX][keyY];
+        }
         if (!this.grid || !this.grid[x] || !this.grid[x][y]) return null;
         return this.grid[x][y];
     }

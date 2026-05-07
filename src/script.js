@@ -20,6 +20,10 @@ class Program {
 
         this.selectedRot = 0;
         this.input = new Input();
+        
+        // Debug mode for step-based updates
+        this.debugMode = false;
+        this.debugStep = false;
     }
     async preloadAssets() {
         await this.assetManager.preload();
@@ -68,6 +72,15 @@ class Program {
         }
         try { localStorage.setItem('pf_selectedLevel', levelKey); } catch (e) {}
         this.LevelManager.init(levelKey);
+        
+        // Check for debug parameter in URL (e.g., ?debug or ?debug=true)
+        //const params = new URLSearchParams(window.location.search);
+        const debugParam = params.get('debug');
+        this.debugMode = debugParam !== null && debugParam !== 'false';
+        if (this.debugMode) {
+            this.setupDebugControls();
+        }
+        
         // Wire reset button (reloads current level from JSON)
         try {
             const resetBtn = document.getElementById('resetBtn');
@@ -93,16 +106,50 @@ class Program {
         this.lastTime = performance.now();
         requestAnimationFrame(this.loop.bind(this));        
     }
+    setupDebugControls() {
+        document.addEventListener('keydown', (event) => {
+            if (!this.debugMode) return;
+            
+            // Arrow keys: right/left for single step, up for multi-step
+            if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                this.debugStep = true;
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                // Left arrow: step backward (reset and re-run state - would need more complex implementation)
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                // Up arrow: step multiple frames (10 fixed update cycles)
+                for (let i = 0; i < 10; i++) {
+                    this.update(this.fixedDelta);
+                }
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                // Down arrow: toggle pause (for convenience)
+                if(this.debugMode) this.debugMode = false;
+                else this.debugMode = true;
+            }
+        });
+    }
     loop() {
         const now = performance.now();
         const maxFrameDelta = 100; // ms cap to avoid huge jumps
         const frameDelta = Math.min(maxFrameDelta, now - this.lastTime);
         this.lastTime = now;
+        
+        // In debug mode, only accumulate and update if debugStep flag is set
+        if (this.debugMode && !this.debugStep) {
+            this.draw();
+            requestAnimationFrame(this.loop.bind(this));
+            return;
+        }
+        
         this.accumulator = Math.min(this.accumulator + frameDelta, this.fixedDelta * this.maxSubSteps);
         while (this.accumulator >= this.fixedDelta) {
             this.update(this.fixedDelta);
             this.accumulator -= this.fixedDelta;
         }
+        this.debugStep = false; // consume the step flag
         this.draw();
         // Render uses the latest fixed-step simulation state.
 
@@ -257,6 +304,16 @@ class Program {
             this.ctx.strokeStyle = setChannel('#FFFFFFFF', 'a', 0.5, 'string');
             this.ctx.lineWidth = lw; // match pixel-perfect stroke
             this.ctx.strokeRect(gridX * size + inset, gridY * size + inset, size - lw, size - lw);
+            this.ctx.restore();
+        }
+        
+        // Draw debug mode indicator
+        if (this.debugMode) {
+            this.ctx.save();
+            this.ctx.font = 'bold 16px monospace';
+            this.ctx.fillStyle = '#FF00FF';
+            this.ctx.textAlign = 'right';
+            this.ctx.fillText('[DEBUG MODE] Use arrow keys: → step, ↑ multi-step, ↓ toggle', this.canvas.width - 10, 20);
             this.ctx.restore();
         }
     }

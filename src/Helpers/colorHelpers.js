@@ -19,13 +19,14 @@ export function addHex32(...colors) {
 }
 
 // Subtract colorB from colorA per-channel (RRGGBBAA format). Channels are clamped to 0..255.
-export function subHex32(colorA, colorB) {
+// Set subtractAlpha to 1 to include alpha subtraction; default keeps alpha from colorA.
+export function subHex32(colorA, colorB, subtractAlpha = 0) {
     const a = intHex(colorA) >>> 0;
     const b = intHex(colorB) >>> 0;
     const r = Math.max(0, ((a >>> 24) & 0xFF) - ((b >>> 24) & 0xFF));
     const g = Math.max(0, ((a >>> 16) & 0xFF) - ((b >>> 16) & 0xFF));
     const bb = Math.max(0, ((a >>> 8) & 0xFF) - ((b >>> 8) & 0xFF));
-    const aa = Math.max(0, (a & 0xFF) - (b & 0xFF));
+    const aa = subtractAlpha ? Math.max(0, (a & 0xFF) - (b & 0xFF)) : (a & 0xFF);
     return (((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((bb & 0xFF) << 8) | (aa & 0xFF)) >>> 0;
 }
 

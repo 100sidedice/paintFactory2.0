@@ -1,4 +1,4 @@
-import { stringHex, intHex } from "../Helpers/colorHelpers.js";
+import { stringHex, intHex, subHex32 } from "../Helpers/colorHelpers.js";
 import Item from "../World/Item.js";
 
 export default class ParticleManager {
@@ -69,7 +69,7 @@ export default class ParticleManager {
         const p = new PortalParticle(`${this.portalParticles[portalId].count}`, x, y, color, vx, vy, ()=>{
             beam.targetParticle = null; // stop the beam from tracking once the portal particle is despawned
             delete this.portalParticles[portalId][`${p.name}`];
-        }, manager);
+        }, manager, portalId);
         beam.targetParticle = p; // link the beam to the portal particle so it can track it
         p.beam = beam;
         this.portalParticles[portalId][`${this.portalParticles[portalId].count}`] = p;
@@ -169,7 +169,7 @@ export default class ParticleManager {
 
 
 class PortalParticle {
-    constructor(name, x,y,color, vx, vy, despawn, manager, portalcolor){
+    constructor(name, x,y,color, vx, vy, despawn, manager, portalId){
         this.name = name;
         this.x = x;
         this.y = y;
@@ -180,10 +180,11 @@ class PortalParticle {
         this.lastY = y;
         this.despawn = despawn;
         this.manager = manager;
+        this.portalId = portalId;
         this.inGlass = false;
         this.glassAxis = null; // 'x' or 'y'
         this.beam = null;
-        this.portalcolor = portalcolor;
+        this.portalcolor = this.manager.getMachine(`${Math.floor(x)},${Math.floor(y)}`).color; 
     }
     draw(ctx) {
         ctx.fillStyle = stringHex(this.color);
@@ -211,8 +212,32 @@ class PortalParticle {
         const collisions = this.getcollidedCells();
         const winSize = window.innerHeight/9; 
         for(const col of collisions){
+            if(col.cell === this.portalId) continue;
             // use axis annotated by getcollidedCells ("x", "y", "center", or "corner")
             const axis = col.axis || 'center';
+            if (col.entering === 'true' && col.type === 'portal-in'){
+                const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
+                // portal horizen: if a beam passes through the horizen, the portal subtracts it's color from the beam
+                const machine = this.manager.getMachine(cellX, cellY);
+                const portalColor = intHex(machine.color);
+                const beamColor = intHex(this.color);
+                const isBlackBeam = (beamColor & 0xFFFFFF00) === 0;
+                const isBlackPortal = (portalColor & 0xFFFFFF00) === 0;
+                if (isBlackBeam && isBlackPortal) {
+                    if(machine.corrupted){
+                        machine.corrupted = false; // repair
+                    } else {
+                        machine.corrupted = true; // corrupt
+                    }
+                    this.despawn();
+                    return;
+                    // corruption handling will grow from here.
+                } else {
+                    const newColor = subHex32(beamColor, portalColor);
+                    this.beam.color = stringHex(newColor);
+                    this.color = newColor; 
+                }
+            }
             if (col.entering === 'center' && col.type === 'portal') {
                 const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
                 if (Number.isFinite(cellX) && Number.isFinite(cellY)) {
@@ -232,6 +257,7 @@ class PortalParticle {
                     }
                 }
             }
+            
             // Glass handling: when entering a glass cell, remember that we're inside and the axis we used to enter.
             // When exiting, if exiting on the same axis, allow exit; otherwise bounce off (reflect the velocity component perpendicular to the wall).
             if (col.type === 'glass'){
@@ -292,14 +318,14 @@ class PortalParticle {
         const startY = this.lastY + 0.5;
         const endX = this.x + 0.5;
         const endY = this.y + 0.5;
-        // Tiny epsilon avoids counting the starting boundary while still catching a single crossed line.
+        // Tiny epsilon avoids floating-point comparison issues, not for excluding valid boundaries
         const eps = 1e-9;
-        // 1. bounding box (ceil & floor as we don't collide with floored mins and ceiled maxes)
-        // note, although we do check center collisions - we don't want to check the point the particle is leaving from, so ceil min = ok.
-        const minX = Math.ceil(Math.min(startX, endX) + eps);
-        const maxX = Math.floor(Math.max(startX, endX) - eps);
-        const minY = Math.ceil(Math.min(startY, endY) + eps);
-        const maxY = Math.floor(Math.max(startY, endY) - eps);
+        // 1. bounding box - check ALL cells the particle path crosses
+        // Do NOT apply epsilon to the min/max calculation - that prevents valid collisions from being checked
+        const minX = Math.floor(Math.min(startX, endX));
+        const maxX = Math.floor(Math.max(startX, endX));
+        const minY = Math.floor(Math.min(startY, endY));
+        const maxY = Math.floor(Math.max(startY, endY));
 
         // 2a. center collisions (cell centers are at x.5, y.5 in world coords)
         const dx = endX - startX;
@@ -319,7 +345,7 @@ class PortalParticle {
                     const cordX = Math.floor(x);
                     const cordY = Math.floor(startY);
                     const machine = fm.getMachine(cordX, cordY);
-                    if (machine) centers.set(`${cordX}, ${cordY}`, {px:x, py:startY, type:machine.name, entering:'center', axis: 'center'})
+                    if (machine) centers.set(`${cordX},${cordY}`, {px:x, py:startY, type:machine.name, entering:'center', axis: 'center'})
                 }
             }
         } else if (Math.abs(dx) < eps) {
@@ -336,7 +362,7 @@ class PortalParticle {
                     const cordX = Math.floor(startX);
                     const cordY = Math.floor(y);
                     const machine = fm.getMachine(cordX, cordY);
-                    if (machine) centers.set(`${cordX}, ${cordY}`, {px:startX, py:y, type:machine.name, entering:'center', axis: 'center'})
+                    if (machine) centers.set(`${cordX},${cordY}`, {px:startX, py:y, type:machine.name, entering:'center', axis: 'center'})
                 }
             }
         } else {
@@ -355,7 +381,7 @@ class PortalParticle {
                     const cordX = Math.floor(x);
                     const cordY = Math.floor(y);
                     const machine = fm.getMachine(cordX, cordY);
-                    if (machine) centers.set(`${cordX}, ${cordY}`, {px:x, py:y, type:machine.name, entering:'center', axis: 'center'})
+                    if (machine) centers.set(`${cordX},${cordY}`, {px:x, py:y, type:machine.name, entering:'center', axis: 'center'})
                 }
             }
         }
@@ -387,18 +413,18 @@ class PortalParticle {
 
                 // diagonal cell (crossing both boundaries)
                 const diagMachine = fm.getMachine(toX, toY);
-                if (diagMachine) cells.set(`${toX}, ${toY}`, {px:x, py:y, type:diagMachine.name, entering:'true', axis: 'corner'})
+                if (diagMachine) cells.set(`${toX},${toY}`, {px:x, py:y, type:diagMachine.name, entering:'true', axis: 'corner'})
 
                 // side cells (crossing each boundary individually)
                 const sideMachineX = fm.getMachine(toX, fromY);
-                if (sideMachineX) cells.set(`${toX}, ${fromY}`, {px:x, py:y, type:sideMachineX.name, entering:'true', axis: 'x'})
+                if (sideMachineX) cells.set(`${toX},${fromY}`, {px:x, py:y, type:sideMachineX.name, entering:'true', axis: 'x'})
 
                 const sideMachineY = fm.getMachine(fromX, toY);
-                if (sideMachineY) cells.set(`${fromX}, ${toY}`, {px:x, py:y, type:sideMachineY.name, entering:'true', axis: 'y'})
+                if (sideMachineY) cells.set(`${fromX},${toY}`, {px:x, py:y, type:sideMachineY.name, entering:'true', axis: 'y'})
 
                 // we also have the from corner cell, which we are exiting.
                 const fromMachine = fm.getMachine(fromX, fromY);
-                if (fromMachine) cells.set(`${fromX}, ${fromY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'corner'})
+                if (fromMachine) cells.set(`${fromX},${fromY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'corner'})
             }
             // case 2. not a corner, moving down.
             else if (endY > startY){
@@ -406,9 +432,9 @@ class PortalParticle {
                 const enterY = cordY;
                 const exitY = cordY - 1;
                 const fromMachine = fm.getMachine(cordX, exitY);
-                if (fromMachine) cells.set(`${cordX}, ${exitY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'y'})
+                if (fromMachine) cells.set(`${cordX},${exitY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'y'})
                 const machine = fm.getMachine(cordX, enterY);
-                if (machine) cells.set(`${cordX}, ${enterY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'y'})
+                if (machine) cells.set(`${cordX},${enterY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'y'})
             }
             // case 3. not a corner, moving up.
             else {
@@ -416,9 +442,9 @@ class PortalParticle {
                 const enterY = cordY - 1;
                 const exitY = cordY;
                 const fromMachine = fm.getMachine(cordX, exitY);
-                if (fromMachine) cells.set(`${cordX}, ${exitY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'y'})
+                if (fromMachine) cells.set(`${cordX},${exitY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'y'})
                 const machine = fm.getMachine(cordX, enterY);
-                if (machine) cells.set(`${cordX}, ${enterY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'y'})
+                if (machine) cells.set(`${cordX},${enterY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'y'})
             }
         }
         // Now, x axis collisions. Simpler, no center or corner cases here. We don't want duplicates, so we early return on corners.
@@ -432,17 +458,17 @@ class PortalParticle {
                 const enterX = cordX;
                 const exitX = cordX - 1;
                 const fromMachine = fm.getMachine(exitX, cordY);
-                if (fromMachine) cells.set(`${exitX}, ${cordY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'x'})
+                if (fromMachine) cells.set(`${exitX},${cordY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'x'})
                 const machine = fm.getMachine(enterX, cordY);
-                if (machine) cells.set(`${enterX}, ${cordY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'x'})
+                if (machine) cells.set(`${enterX},${cordY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'x'})
             }
             else {
                 const enterX = cordX - 1;
                 const exitX = cordX;
                 const fromMachine = fm.getMachine(exitX, cordY);
-                if (fromMachine) cells.set(`${exitX}, ${cordY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'x'})
+                if (fromMachine) cells.set(`${exitX},${cordY}`, {px:startX, py:startY, type:fromMachine.name, entering:'false', axis: 'x'})
                 const machine = fm.getMachine(enterX, cordY);
-                if (machine) cells.set(`${enterX}, ${cordY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'x'})
+                if (machine) cells.set(`${enterX},${cordY}`, {px:x, py:y, type:machine.name, entering:'true', axis: 'x'})
             }
         }
         // yay all collisions done. But we're not done yet, we need to weave X & Y, then merge in center.
@@ -492,21 +518,72 @@ class BeamParticle {
         this.targetParticle = targetParticle;
         this.recordedPositions = [];
         this.despawn = despawn;
+        this.lastRecordedX = null;
+        this.lastRecordedY = null;
+        this.elapsedTime = 0; // accumulated time for tracking history window
     }
     update(delta){
-        if(!this.targetParticle) {
-            this.despawn();
-            return; // stop any further processing to avoid accessing a destroyed target
+        this.elapsedTime += delta;
+        if (!this.targetParticle) {
+            const cutoff = this.elapsedTime - 100;
+            while (this.recordedPositions.length && this.recordedPositions[0].time < cutoff) {
+                this.recordedPositions.shift();
+            }
+            if (!this.recordedPositions.length) {
+                this.despawn();
+            }
+            return;
         }
-        // record the target particle's position history for the last 100ms (or so)
-        this.recordedPositions.push({x: this.targetParticle.x, y: this.targetParticle.y, timestamp: performance.now()});
-        const cutoff = performance.now() - 100;
-        while(this.recordedPositions.length && this.recordedPositions[0].timestamp < cutoff){
+
+        // Track elapsed time instead of relying on performance.now() which breaks during debug stepping
+        
+        // For large deltas (like 10 frames at once), interpolate intermediate positions
+        // to maintain a smooth beam even during rapid stepping
+        const sampleInterval = 5; // ms between samples for smooth trails
+        const numSamples = Math.max(1, Math.ceil(delta / sampleInterval));
+        
+        if (this.lastRecordedX === null) {
+            // First update; just record current position
+            this.lastRecordedX = this.targetParticle.x;
+            this.lastRecordedY = this.targetParticle.y;
+            this.recordedPositions.push({
+                x: this.targetParticle.x,
+                y: this.targetParticle.y,
+                time: this.elapsedTime
+            });
+        } else if (numSamples > 1) {
+            // Large delta: interpolate intermediate positions
+            const dx = this.targetParticle.x - this.lastRecordedX;
+            const dy = this.targetParticle.y - this.lastRecordedY;
+            for (let i = 1; i <= numSamples; i++) {
+                const t = i / numSamples;
+                this.recordedPositions.push({
+                    x: this.lastRecordedX + dx * t,
+                    y: this.lastRecordedY + dy * t,
+                    time: this.elapsedTime - delta + (delta * t)
+                });
+            }
+            this.lastRecordedX = this.targetParticle.x;
+            this.lastRecordedY = this.targetParticle.y;
+        } else {
+            // Small delta: record normally
+            this.recordedPositions.push({
+                x: this.targetParticle.x,
+                y: this.targetParticle.y,
+                time: this.elapsedTime
+            });
+            this.lastRecordedX = this.targetParticle.x;
+            this.lastRecordedY = this.targetParticle.y;
+        }
+        
+        // Remove old positions outside the 100ms window
+        const cutoff = this.elapsedTime - 100;
+        while(this.recordedPositions.length && this.recordedPositions[0].time < cutoff){
             this.recordedPositions.shift();
         }
     }
     draw(ctx){
-        if(!this.targetParticle) return; // no target, so nothing to draw.
+        if (!this.recordedPositions.length && !this.targetParticle) return; // no history left, so nothing to draw.
         ctx.strokeStyle = stringHex(this.color);
         const size = window.innerHeight/9;
         // draw a line between recorded positions. If no recorded positions, draw a dot at the target particle.
@@ -519,6 +596,9 @@ class BeamParticle {
             ctx.stroke();
         } else if (this.targetParticle) {
             ctx.fillRect(this.targetParticle.x*size+size/2 - 2, this.targetParticle.y*size+size/2 - 2, 4, 4);
+        } else if (this.recordedPositions.length) {
+            const last = this.recordedPositions[this.recordedPositions.length - 1];
+            ctx.fillRect(last.x*size+size/2 - 2, last.y*size+size/2 - 2, 4, 4);
         }
     }
 }
