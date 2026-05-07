@@ -1,6 +1,6 @@
 {
     "Header": "Portals",
-    "Description": "Sell 100 of each secondary color",
+    "Description": "Sell the simple rainbow 100 times",
     "funny": "Portals. One of the many secrets Paint corp hides from the public.",
     "Hints": [
         "Click a machine in the sidebar to select it, then click on the grid to place it",
@@ -8,10 +8,13 @@
         "Make a path from the spawner to the goal using conveyor belts"
     ],
     "Goal": {
+        "time": 300,
+        "#FF0000FF": 100,
         "#FFFF00FF": 100,
+        "#00FF00FF": 100,
         "#00FFFFFF": 100,
-        "#FF00FFFF": 100,
-        "time": 300
+        "#0000FFFF": 100,
+        "#FF00FFFF": 100
     },
     "Machines": [
         ["delete",1],
@@ -22,12 +25,16 @@
         ["mixer-right",99],
         ["conveyor",99],
         ["conveyor-left",99],
-        ["conveyor-right",99]
+        ["conveyor-right",99],
+        ["conveyor-merge",99],
+        ["conveyor-mergeleft",99],
+        ["conveyor-mergeright",99]
     ],
     "spawner-items": [
-        {"color":4294967295,"count":999},
+        {"color":4278255615,"count":999},
         {"color":4278190335,"count":999},
-        {"color":16711935,"count":99}
+        {"color":16711935,"count":99},
+        {"color":65535,"count":99}
     ],
     "Placed": {
         "1.0": "nothing",
@@ -40,76 +47,75 @@
         "1.7": "nothing",
         "1.8": "nothing",
         "2.0": "nothing",
-        "2.1": {
-            "type": "spawner #FFFFFFFF",
-            "rot": 90
-        },
-        "2.2": {
-            "type": "spawner #FFFFFFFF",
-            "rot": 90
-        },
-        "2.3": "nothing",
-        "2.4": "nothing",
-        "2.5": "nothing",
-        "2.6": "nothing",
+        "2.1": "nothing",
+        "2.2": "nothing",
         "2.7": "nothing",
         "2.8": "nothing",
         "3.0": "nothing",
-        "3.1": {
-            "type": "portal-in",
-            "rot": 270
-        },
-        "3.2": {
-            "type": "portal-in",
-            "rot": 270
-        },
-        "3.7": "spawner #0000FFFF",
+        "3.1": "nothing",
+        "3.2": "nothing",
+        "3.4": "nothing",
+        "3.7": "spawner #FFFFFFFF",
         "3.8": "nothing",
         "4.0": "nothing",
-        "4.7": "spawner #00FF00FF",
+        "4.1": {
+            "type": "spawner #FF00FFFF",
+            "rot": 90
+        },
+        "4.2": "nothing",
+        "4.7": "nothing",
         "4.8": "nothing",
         "5.0": "nothing",
-        "5.7": "spawner #0000FFFF",
+        "5.1": "portal-in",
+        "5.7": "spawner #FFFFFFFF",
         "5.8": "nothing",
         "6.0": "nothing",
+        "6.1": "glass",
+        "6.7": "nothing",
         "6.8": "nothing",
         "7.0": "nothing",
         "7.1": "glass",
-        "7.2": "glass",
-        "7.3": "nothing",
-        "7.4": "seller",
-        "7.5": "nothing",
-        "7.6": "nothing",
-        "7.7": "nothing",
+        "7.2": "nothing",
+        "7.7": "spawner #FFFFFFFF",
         "7.8": "nothing",
         "8.0": "nothing",
+        "8.1": "glass",
+        "8.2": "nothing",
+        "8.3": "nothing",
+        "8.4": "nothing",
+        "8.5": "nothing",
+        "8.6": "nothing",
+        "8.7": "nothing",
         "8.8": "nothing",
         "9.0": "nothing",
-        "9.7": "spawner #FF0000FF",
+        "9.1": "glass",
+        "9.2": "nothing",
+        "9.3": "nothing",
+        "9.4": "nothing",
+        "9.5": "nothing",
+        "9.6": "nothing",
+        "9.7": "nothing",
         "9.8": "nothing",
         "10.0": "nothing",
-        "10.7": "spawner #00FF00FF",
+        "10.1": "glass",
+        "10.2": "nothing",
+        "10.3": "nothing",
+        "10.4": "nothing",
+        "10.5": "nothing",
+        "10.6": "nothing",
+        "10.7": "nothing",
         "10.8": "nothing",
         "11.0": "nothing",
-        "11.1": {
-            "type": "portal",
-            "rot": 90
-        },
-        "11.2": {
-            "type": "portal",
-            "rot": 90
-        },
-        "11.7": "spawner #FF0000FF",
+        "11.1": "portal",
+        "11.6": "seller",
+        "11.7": "nothing",
         "11.8": "nothing",
         "12.0": "nothing",
         "12.1": {
-            "type": "spawner #FFFFFFFF",
+            "type": "spawner #FF00FFFF",
             "rot": 270
         },
-        "12.2": {
-            "type": "spawner #FFFFFFFF",
-            "rot": 270
-        },
+        "12.2": "nothing",
         "12.3": "nothing",
         "12.4": "nothing",
         "12.5": "nothing",
