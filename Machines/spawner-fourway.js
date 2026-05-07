@@ -3,6 +3,7 @@ import Item from '../src/World/Item.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
 import { intHex } from '../src/Helpers/colorHelpers.js';
+import { getColorizedTile } from './components/masking.js';
 
 export default class spawner extends MachineBase {
     constructor(name, machineData, manager) {
@@ -106,52 +107,4 @@ export default class spawner extends MachineBase {
     }
 }
 
-// Cache for colorized tiles: key -> HTMLCanvasElement
-const _colorizedTileCache = new Map();
-
-export function getImageId(img) {
-    if (!img) return 'img:null';
-    if (img.src) return img.src;
-    // fallback for canvases or other sources
-    return `canvas:${img.width}x${img.height}`;
-}
-
-export function hexToRgba(hex32) {
-    const v = intHex(hex32) >>> 0;
-    const r = (v >>> 24) & 0xFF;
-    const g = (v >>> 16) & 0xFF;
-    const b = (v >>> 8) & 0xFF;
-    const a = v & 0xFF;
-    return [r, g, b, a];
-}
-
-export function getColorizedTile(img, sx, sy, tw, th, newColor, maskColor=0x1C1C1CFF) {
-    const id = `${getImageId(img)}|${sx},${sy},${tw},${th}|${(intHex(newColor)>>>0).toString(16)}`;
-    if (_colorizedTileCache.has(id)) return _colorizedTileCache.get(id);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = tw; canvas.height = th;
-    const cctx = canvas.getContext('2d');
-    cctx.imageSmoothingEnabled = false;
-    // draw tile region onto temp canvas
-    cctx.clearRect(0,0,tw,th);
-    cctx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
-
-    const maskC = hexToRgba(maskColor);
-    const newC = hexToRgba(newColor);
-    try {
-        const idata = cctx.getImageData(0,0,tw,th);
-        const data = idata.data;
-        for (let i=0;i<data.length;i+=4) {
-            if (data[i] === maskC[0] && data[i+1] === maskC[1] && data[i+2] === maskC[2] && data[i+3] === maskC[3]) {
-                data[i] = newC[0]; data[i+1] = newC[1]; data[i+2] = newC[2]; data[i+3] = newC[3];
-            }
-        }
-        cctx.putImageData(idata,0,0);
-    } catch (e) {
-        // SecurityError if image is tainted; fail gracefully and just return original region drawn to canvas
-    }
-
-    _colorizedTileCache.set(id, canvas);
-    return canvas;
-}
+// Masking utilities (getColorizedTile) imported from ./components/masking.js

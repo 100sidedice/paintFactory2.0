@@ -1,6 +1,6 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
 import { stringHex, intHex } from "../Helpers/colorHelpers.js";
-import { getImageId, hexToRgba, getColorizedTile } from "../../Machines/spawner.js";
+import { getImageId, hexToRgba, getColorizedTile } from "../../Machines/components/masking.js";
 
 // Constants to replace magic numbers and repeated strings
 const ROTATION_STEP = 90; // Degrees to rotate machines (90° increments)

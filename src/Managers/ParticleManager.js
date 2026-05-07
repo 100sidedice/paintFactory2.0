@@ -217,7 +217,7 @@ class PortalParticle {
             const axis = col.axis || 'center';
             if (col.entering === 'true' && col.type === 'portal-in'){
                 const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
-                // portal horizen: if a beam passes through the horizen, the portal subtracts it's color from the beam
+                // portal vortex: if a beam passes through the vortex, the portal subtracts it's color from the beam
                 const machine = this.manager.getMachine(cellX, cellY);
                 const portalColor = intHex(machine.color);
                 const beamColor = intHex(this.color);
@@ -254,6 +254,16 @@ class PortalParticle {
                     if (this._spawnItemAtCell(cellX, cellY)) {
                         this.despawn();
                         return;
+                    }
+                }
+            }
+
+            if ((col.entering === 'true' || col.entering === 'center') && col.type === 'cloner') {
+                const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
+                if (Number.isFinite(cellX) && Number.isFinite(cellY)) {
+                    const machine = this.manager.getMachine(cellX, cellY);
+                    if (machine && typeof machine.receiveBeamColor === 'function') {
+                        machine.receiveBeamColor(this.color);
                     }
                 }
             }

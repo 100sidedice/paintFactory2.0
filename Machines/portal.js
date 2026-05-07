@@ -2,6 +2,7 @@ import MachineBase from './Machine.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
 import { intHex, addHex32 } from '../src/Helpers/colorHelpers.js';
+import { createCanvas, getImageId, getCanvasId, hexToRgba, getMaskedLayer } from './components/masking.js';
 
 const PORTAL_MASK = 0x000000FF;
 const CENTER_MASK = 0xFFFFFFFF;
@@ -157,41 +158,8 @@ const _portalTileCache = new Map();
 const _portalFrameCache = new Map();
 const _portalGradientFillCache = new Map();
 const _centerFillCache = new Map();
-const _maskedLayerCache = new Map();
-const _canvasIdMap = new WeakMap();
-let _canvasIdCounter = 1;
-
-function createCanvas(w, h) {
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    return { canvas, ctx };
-}
-
-function getImageId(img) {
-    if (!img) return 'img:null';
-    if (img.src) return img.src;
-    return `canvas:${img.width}x${img.height}`;
-}
-
-function getCanvasId(canvas) {
-    if (!canvas) return 'canvas:null';
-    if (!_canvasIdMap.has(canvas)) {
-        _canvasIdMap.set(canvas, `c${_canvasIdCounter++}`);
-    }
-    return _canvasIdMap.get(canvas);
-}
-
-function hexToRgba(hex32) {
-    const v = intHex(hex32) >>> 0;
-    const r = (v >>> 24) & 0xFF;
-    const g = (v >>> 16) & 0xFF;
-    const b = (v >>> 8) & 0xFF;
-    const a = v & 0xFF;
-    return [r, g, b, a];
-}
+// createCanvas, getImageId, getCanvasId, hexToRgba and getMaskedLayer
+// are provided by Machines/components/masking.js
 
 function clampByte(n) {
     return Math.max(0, Math.min(255, Math.round(n || 0)));
@@ -315,20 +283,7 @@ function getSolidFillCanvas(tw, th, color) {
     return canvas;
 }
 
-function getMaskedLayer(fillCanvas, maskCanvas) {
-    const key = `${getCanvasId(fillCanvas)}|${getCanvasId(maskCanvas)}`;
-    if (_maskedLayerCache.has(key)) return _maskedLayerCache.get(key);
-
-    const { canvas, ctx } = createCanvas(fillCanvas.width, fillCanvas.height);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(fillCanvas, 0, 0);
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.drawImage(maskCanvas, 0, 0);
-    ctx.globalCompositeOperation = 'source-over';
-
-    _maskedLayerCache.set(key, canvas);
-    return canvas;
-}
+// getMaskedLayer comes from masking component
 
 function getPortalTile(img, sx, sy, tw, th, portalColor, centerColor, portalMaskColor = PORTAL_MASK, centerMaskColor = CENTER_MASK) {
     const id = `${getImageId(img)}|${sx},${sy},${tw},${th}|p:${(intHex(portalColor) >>> 0).toString(16)}|c:${(intHex(centerColor) >>> 0).toString(16)}`;

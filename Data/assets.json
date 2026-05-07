@@ -31,7 +31,8 @@
             "mixer-right": {"name": "mixer-right"},
             "portal": {"name": "portal"},
             "portal-in": {"name": "portal-in"},
-            "glass": {"name": "glass"}
+            "glass": {"name": "glass"},
+            "cloner": {"name": "cloner"}
         }
     },
     "machineData": {

@@ -3,6 +3,7 @@ import Item from '../src/World/Item.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
 import { stringHex, intHex, addHex32 } from '../src/Helpers/colorHelpers.js';
+import { getColorizedTile } from './components/masking.js';
 
 export default class mixer extends MachineBase {
     constructor(name, machineData, manager) {
@@ -277,63 +278,7 @@ export default class mixer extends MachineBase {
     }
 }
 
-// Cache for colorized tiles: key -> HTMLCanvasElement
-const _colorizedTileCache = new Map();
-
-function getImageId(img) {
-    if (!img) return 'img:null';
-    if (img.src) return img.src;
-    // fallback for canvases or other sources
-    return `canvas:${img.width}x${img.height}`;
-}
-
-function hexToRgba(hex32) {
-    const v = intHex(hex32) >>> 0;
-    const r = (v >>> 24) & 0xFF;
-    const g = (v >>> 16) & 0xFF;
-    const b = (v >>> 8) & 0xFF;
-    const a = v & 0xFF;
-    return [r, g, b, a];
-}
-
-function getColorizedTile(img, sx, sy, tw, th, mainNewColor, mainMaskColor=0x353535FF, leftNewColor=0xFFFFFFFF, leftMaskColor=0xFFFFFFFF, rightNewColor=0x000000FF, rightMaskColor=0x000000FF) {
-    const id = `${getImageId(img)}|${sx},${sy},${tw},${th}|m:${(intHex(mainNewColor)>>>0).toString(16)}|l:${(intHex(leftNewColor)>>>0).toString(16)}|r:${(intHex(rightNewColor)>>>0).toString(16)}`;
-    if (_colorizedTileCache.has(id)) return _colorizedTileCache.get(id);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = tw; canvas.height = th;
-    const cctx = canvas.getContext('2d');
-    cctx.imageSmoothingEnabled = false;
-    // draw tile region onto temp canvas
-    cctx.clearRect(0,0,tw,th);
-    cctx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
-
-    const maskMain = hexToRgba(mainMaskColor);
-    const newMain = hexToRgba(mainNewColor);
-    const maskLeft = hexToRgba(leftMaskColor);
-    const newLeft = hexToRgba(leftNewColor);
-    const maskRight = hexToRgba(rightMaskColor);
-    const newRight = hexToRgba(rightNewColor);
-    try {
-        const idata = cctx.getImageData(0,0,tw,th);
-        const data = idata.data;
-        for (let i=0;i<data.length;i+=4) {
-            if (data[i] === maskMain[0] && data[i+1] === maskMain[1] && data[i+2] === maskMain[2] && data[i+3] === maskMain[3]) {
-                data[i] = newMain[0]; data[i+1] = newMain[1]; data[i+2] = newMain[2]; data[i+3] = newMain[3];
-            } else if (data[i] === maskLeft[0] && data[i+1] === maskLeft[1] && data[i+2] === maskLeft[2] && data[i+3] === maskLeft[3]) {
-                data[i] = newLeft[0]; data[i+1] = newLeft[1]; data[i+2] = newLeft[2]; data[i+3] = newLeft[3];
-            } else if (data[i] === maskRight[0] && data[i+1] === maskRight[1] && data[i+2] === maskRight[2] && data[i+3] === maskRight[3]) {
-                data[i] = newRight[0]; data[i+1] = newRight[1]; data[i+2] = newRight[2]; data[i+3] = newRight[3];
-            }
-        }
-        cctx.putImageData(idata,0,0);
-    } catch (e) {
-        // SecurityError if image is tainted; fail gracefully and just return original region drawn to canvas
-    }
-
-    _colorizedTileCache.set(id, canvas);
-    return canvas;
-}
+// Masking utilities (getColorizedTile) imported from ./components/masking.js
 /**
  * Rotate a point (dx,dy) by `rot` degrees clockwise, returning the rotated offsets.
  */

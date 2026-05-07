@@ -1,7 +1,7 @@
 import MachineBase from './Machine.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
-
+//#FFC800FF - lighter yellow, #CBA000FF - darker yellow
 export default class conveyor extends MachineBase {
     constructor(name, machineData, manager) {
         super(name, machineData, manager);

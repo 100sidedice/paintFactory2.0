@@ -21,10 +21,7 @@
         ["delete",1],
         ["delete-rotate",1],
         ["delete-select",1],
-        ["spawner",9999],
-        ["spawner-twoway",9999],
-        ["spawner-threeway",9999],
-        ["spawner-fourway",9999],
+        ["nothing",999],
         ["mixer",9999],
         ["mixer-left",9999],
         ["mixer-right",9999],
@@ -37,7 +34,7 @@
         ["seller",9999],
         ["portal-in",9999],
         ["portal",9999],
-        ["nothing",9999]
+        ["cloner",9999]
     ],
     "spawner-items": [
         {"color":4294967295,"count":999},
@@ -48,28 +45,17 @@
     ],
     "Placed": {
         "3.5": {
-            "type": "spawner #FFFFFFFF",
-            "rot": 180
-        },
-        "3.6": "portal-in",
-        "3.7": "spawner #FFFFFFFF",
-        "6.2": "nothing",
-        "6.3": "nothing",
-        "6.4": "nothing",
-        "7.2": "nothing",
-        "7.3": "seller",
-        "7.5": {
             "type": "spawner #FF0000FF",
             "rot": 180
         },
-        "7.6": "portal-in",
-        "8.2": "nothing",
-        "8.3": "nothing",
-        "8.4": "nothing",
-        "12.4": {
-            "type": "spawner #FFFFFFFF",
+        "3.6": "portal-in",
+        "3.7": "spawner #FF0000FF",
+        "8.6": "cloner",
+        "12.5": {
+            "type": "spawner #FF0000FF",
             "rot": 180
         },
-        "12.5": "portal"
+        "12.6": "portal",
+        "12.7": "seller"
     }
 }
