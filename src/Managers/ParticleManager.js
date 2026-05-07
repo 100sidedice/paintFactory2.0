@@ -322,9 +322,9 @@ class PortalParticle {
         const eps = 1e-9;
         // 1. bounding box - check ALL cells the particle path crosses
         // Do NOT apply epsilon to the min/max calculation - that prevents valid collisions from being checked
-        const minX = Math.floor(Math.min(startX, endX));
+        const minX = Math.ceil(Math.min(startX, endX));
         const maxX = Math.floor(Math.max(startX, endX));
-        const minY = Math.floor(Math.min(startY, endY));
+        const minY = Math.ceil(Math.min(startY, endY)); // we don't want floor for the edge collision, but still want the center - hence the -0.5 shift
         const maxY = Math.floor(Math.max(startY, endY));
 
         // 2a. center collisions (cell centers are at x.5, y.5 in world coords)
