@@ -20,7 +20,6 @@ const DELETE_SELECT = 'delete-select'; // Machine type for select/drag action
 
 export default class SidebarManager {
     constructor(assetManager, input, factoryManager, dataManager, particleManager) {
-        console.log('SidebarManager constructor');
         this.assetManager = assetManager;
         this.input = input;
         this.factoryManager = factoryManager;
@@ -842,6 +841,32 @@ export default class SidebarManager {
         return this.spawnerItems?.[0]?.color ?? null;
     }
 
+    _canRemoveMachineAt(gridX, gridY) {
+        const grid = this.factoryManager.grid;
+        if (gridX < 0 || gridY < 0 || gridX >= grid.length || gridY >= grid[0]?.length) {
+            return false;
+        }
+        const machine = grid[gridX][gridY];
+        if (!machine) return false;
+
+        // Check if it's a spawner
+        const machineType = machine.name ?? machine.data?.type ?? null;
+        if (machineType !== 'spawner') {
+            // Not a spawner, allow removal
+            return true;
+        }
+
+        // It's a spawner - check if the color is available to the user
+        const machineColor = machine.data?.color ?? machine.color ?? null;
+        if (machineColor === null || machineColor === undefined) {
+            return false;
+        }
+
+        const machineColorInt = intHex(machineColor);
+        const isAvailable = this.initialSpawnerCountsInt?.[machineColorInt] !== undefined;
+        return isAvailable;
+    }
+
     _setSpawnerColor(color) {
         if (color === null || color === undefined) return;
         this.spawnerColor = intHex(color);
@@ -1277,7 +1302,6 @@ export default class SidebarManager {
 
                 // Check if there are selected cells - rotate all selected cells
                 if (this.factoryManager.selectedCells && this.factoryManager.selectedCells.size > 0) {
-                    console.log('Rotating', this.factoryManager.selectedCells.size, 'selected cells');
                     for (const cellKey of this.factoryManager.selectedCells) {
                         const [x, y] = cellKey.split(',').map(Number);
                         const machine = this.factoryManager.getMachine(x, y);
@@ -1316,7 +1340,6 @@ export default class SidebarManager {
                 if (gridX < 0 || gridY < 0) return;
                 const cellKey = `${gridX},${gridY}`;
                 const isStartSelected = this.factoryManager.selectedCells && this.factoryManager.selectedCells.has(cellKey);
-                console.log('Select drag starting at', gridX, gridY, 'isStartSelected:', isStartSelected);
                 this._selectDragStart = {
                     startX: gridX,
                     startY: gridY,
@@ -1352,6 +1375,10 @@ export default class SidebarManager {
                     this.factoryManager.cutSelection(this.input.getPos());
                     this.factoryManager.clearSelection();
                     this._refreshAllSlots();
+                    return;
+                }
+                // Check if the machine at this position can be removed
+                if (!this._canRemoveMachineAt(gridX, gridY)) {
                     return;
                 }
                 if (this.factoryManager.removeMachine(gridX, gridY)) {
@@ -1473,6 +1500,10 @@ export default class SidebarManager {
                 return;
             };
             if (!this.hasSlot('delete')) return;
+            // Check if the machine at this position can be removed
+            if (!this._canRemoveMachineAt(gridX, gridY)) {
+                return;
+            }
             const removed = this.factoryManager.removeMachine(gridX, gridY);
             if (removed) {
                 const { x: cx, y: cy } = this._getGridCellCenter(gridX, gridY);

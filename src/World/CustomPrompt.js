@@ -150,9 +150,8 @@ class CustomPrompt extends HTMLElement {
         titleEl.textContent = title;
         input.value = defaultValue;
 
-        // Focus input and select all text
+        // Focus input but don't select all text (selecting causes issues with middle-click)
         input.focus();
-        input.select();
 
         // Handle OK button
         okBtn.addEventListener('click', () => this.resolve(input.value));
@@ -201,9 +200,11 @@ class CustomPrompt extends HTMLElement {
     }
 
     static async show(title, defaultValue = '') {
+        const strValue = defaultValue === null || defaultValue === undefined ? '' : String(defaultValue);
+        
         const prompt = document.createElement('pf-prompt');
         prompt.setAttribute('title', title);
-        prompt.setAttribute('value', defaultValue);
+        prompt.setAttribute('value', strValue);
         
         // Block Input manager while prompt is open
         if (window._inputManager) {

@@ -180,7 +180,6 @@ export default class FactoryManager {
         }
     }
     isSelected(key) {
-        console.log("checking if selected", key, this.selectedCells);
         return this.selectedCells.has(key);
     }
     clearSelection() {

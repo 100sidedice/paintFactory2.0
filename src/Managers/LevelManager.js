@@ -105,7 +105,7 @@ export default class LevelManager {
                 else if (raw && typeof raw === 'object') { type = raw.type || raw.name || null; rot = raw.rot || 0; }
                 if (!type) continue;
                 const placedMachine = this.factoryManager.addMachine(type.split(' ')[0], x, y, rot);
-                // if the type string includes a color token (e.g. "spawner #RRGGBBAA"), parse and apply
+                    // if the type string includes a color token (e.g. "spawner #RRGGBBAA" or "cloner #RRGGBBAA"), parse and apply
                 const tokens = String(type).trim().split(/\s+/);
                 const last = tokens[tokens.length-1];
                 const colorMatch = /^#?[0-9A-Fa-f]{8}$/.test(last) ? last.replace(/^#/, '') : null;
@@ -146,8 +146,6 @@ export default class LevelManager {
                 console.warn(`attachEditable: Element not found: ${selector}`);
                 return;
             }
-            console.log(`attachEditable: Found ${selector}, attaching listener`);
-            
             // Don't clone - use capture phase to catch event early
             el.addEventListener('mouseup', async (ev) => {
                 console.log(`mouseup fired on ${selector}`, ev);
@@ -157,7 +155,6 @@ export default class LevelManager {
                 }
                 ev.stopPropagation();
                 ev.preventDefault();
-                console.log(`Clicked ${selector}`);
                 const cur = this.currentLevelData || {};
                 const curVal = cur[keyName] ?? '';
                 const input = await customPrompt(`Edit ${keyName}`, curVal);
@@ -313,9 +310,10 @@ export default class LevelManager {
                 const type = m.name || (m.data && m.data.type) || null;
                 const rot = (m.data && m.data.rot) || 0;
                 if (!type) continue;
-                // if spawner, include color in the exported name
+                    // if spawner or cloner, include color in the exported name
                 let outType = type;
-                if (String(type).toLowerCase().startsWith('spawner')) {
+                    const typeBase = String(type).toLowerCase();
+                    if (typeBase.startsWith('spawner') || typeBase.startsWith('cloner')) {
                     const col = (m.data && (m.data.color ?? m.color)) ?? m.color ?? null;
                     if (col != null) {
                         // format as #RRGGBBAA

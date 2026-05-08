@@ -16,6 +16,7 @@ export default class cloner extends MachineBase {
         this.corrupted = false;
         this.spreadTime = 0;
         this.nextSpread = 1;
+        this.lastcolor = this.color;
     }
 
     update(delta) {
@@ -38,7 +39,7 @@ export default class cloner extends MachineBase {
         }
     }
 
-    _invertColorRGBPreserveAlpha(color) {
+    _invertColor(color) {
         const v = intHex(color) >>> 0;
         const r = (v >>> 24) & 0xFF;
         const g = (v >>> 16) & 0xFF;
@@ -56,8 +57,12 @@ export default class cloner extends MachineBase {
         // Black beam toggles corruption and inverts the cloner's current RGB channels.
         const isBlackBeam = (next & 0xFFFFFF00) === 0;
         if (isBlackBeam) {
-            this.corrupted = !this.corrupted;
-            this.data.color = this.color;
+            this.corrupted = true;
+            if(this._invertColor(this.color) !== this.lastcolor){
+                this.lastcolor = this.color;
+                this.color = this._invertColor(this.color);
+                this.data.color = this.color;
+            }
             this._propagateColorToNeighbors();
             return;
         }
@@ -122,10 +127,17 @@ export default class cloner extends MachineBase {
                 continue;
             }
             if (machine.name.split('-')[0] === 'conveyor') {
-                // propagate color
                 machine.color = this.color;
                 machine.lastColorChange = performance.now();
-                // if cloner is corrupted, mark conveyors corrupted and rotate them counter-clockwise immediately
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                }
+            }
+            if (machine.name.split('-')[0] === 'spawner') {
+                machine.color = this.color;
+                machine.lastColorChange = performance.now();
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;

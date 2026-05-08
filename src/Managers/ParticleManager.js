@@ -264,10 +264,7 @@ class PortalParticle {
                 const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
                 if (Number.isFinite(cellX) && Number.isFinite(cellY)) {
                     const machine = this.manager.getMachine(cellX, cellY);
-                    if (machine && typeof machine.receiveBeamColor === 'function') {
-                        machine.receiveBeamColor(this.color);
-                        this.despawn();
-                    }
+                    machine.receiveBeamColor(this.color);
                 }
             }
             

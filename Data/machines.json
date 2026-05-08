@@ -102,6 +102,35 @@
         },
         "texture": {"row": 3, "fps": 8, "frameCount": 4, "info":"Moves items upward+left to the right"}
     },
+    "conveyor-4way": {
+        "name": "Conveyor 4-way",
+        "description": "Merges items from 3 dirrections",
+        "collision-up": {
+            "top":0,
+            "bottom":0,
+            "left":7,
+            "right":7
+        },
+        "collision-left": {
+            "top":7,
+            "bottom":7,
+            "left":0,
+            "right":9
+        },
+        "collision-right": {
+            "top":7,
+            "bottom":7,
+            "left":9,
+            "right":0
+        },
+        "collision-center": {
+            "top":7,
+            "bottom":7,
+            "left":7,
+            "right":7
+        },
+        "texture": {"row": 4, "fps": 8, "frameCount": 4, "info":"Moves items upward"}
+    },
     "conveyor-mergeleft": {
         "name": "Conveyor Merge",
         "description": "Merges items from different directions",

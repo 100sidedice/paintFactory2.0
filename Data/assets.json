@@ -24,6 +24,7 @@
             "conveyor-merge": {"name": "conveyor-merge"},
             "conveyor-mergeleft": {"name": "conveyor-mergeleft"},
             "conveyor-mergeright": {"name": "conveyor-mergeright"},
+            "conveyor-4way": {"name": "conveyor-4way"},
             "seller": {"name": "seller"},
             "nothing": {"name": "nothing"},
             "mixer": {"name": "mixer"},
@@ -86,7 +87,9 @@
             "level20": {"name": "level20", "type": "json"},
             "level21": {"name": "level21", "type": "json"},
             "level22": {"name": "level22", "type": "json"},
+            "level23": {"name": "level23", "type": "json"},
             "level25": {"name": "level25", "type": "json"},
+            "level26": {"name": "level26", "type": "json"},
             "level31": {"name": "level31", "type": "json"}
         }
     }

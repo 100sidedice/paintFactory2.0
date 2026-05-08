@@ -97,7 +97,6 @@ export default class GoalManager {
 
         const normalizedGoalObj = this._normalizeGoalObject(goalObj);
         const keys = Object.keys(normalizedGoalObj || {});
-        console.log(`GoalManager.populate: ${keys.length} goals`);
 
         for (const k of keys) {
             const need = parseInt(normalizedGoalObj[k], 10) || 0;
@@ -112,7 +111,6 @@ export default class GoalManager {
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
                 this._attachGoalClickHandler(entry);
-                console.log(`GoalManager: attached handler to time goal`);
 
             } else if (String(k).startsWith('#')) {
                 let colorInt = intHex(k);
@@ -129,7 +127,6 @@ export default class GoalManager {
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
                 this._attachGoalClickHandler(entry);
-                console.log(`GoalManager: attached handler to color goal ${k}`);
 
             } else {
                 const type = String(k);
@@ -143,7 +140,6 @@ export default class GoalManager {
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
                 this._attachGoalClickHandler(entry);
-                console.log(`GoalManager: attached handler to machine goal ${k}`);
             }
         }
 
@@ -157,7 +153,6 @@ export default class GoalManager {
         // Use the element's click handler with pointer-events and custom approach for Firefox compatibility
         entry.el.style.cursor = 'pointer';
         entry.el.addEventListener('click', async (ev) => {
-            console.log(`Goal entry clicked: ${entry.key}`, ev);
             if (!this.levelManager?.devMode) {
                 console.log(`devMode is ${this.levelManager?.devMode}, skipping`);
                 return;
