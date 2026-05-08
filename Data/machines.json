@@ -392,7 +392,7 @@
             "right":7
         },
         "outputs": [],
-        "texture": {"row": 15, "fps": 8, "frameCount": 12, "info":"Play aniamtion backwards. if item enters from an input, portal becomes that color for 1 second. (multiple = mix). Mask colors: Portal: 0x000000FF, Center: 0xFFFFFFFF"}
+        "texture": {"row": 19, "fps": 8, "frameCount": 12, "info":"Play aniamtion backwards. if item enters from an input, portal becomes that color for 1 second. (multiple = mix). Mask colors: Portal: 0x000000FF, Center: 0xFFFFFFFF"}
     },
     "portal-in": {
         "name": "Portal in",
@@ -464,6 +464,6 @@
             "right":0
         },
         "outputs": [],
-        "texture": {"row": 18, "fps": 8, "frameCount": 4, "info":"Simple barrier that paricle trails refract through. Note, glass refracts  based on perpendicular angle of entry. Aka bounce of inner walls, but exits parallel to the edge entered on"}
+        "texture": {"row": 18, "fps": 8, "frameCount": 6, "info":"Simple barrier that paricle trails refract through. Note, glass refracts  based on perpendicular angle of entry. Aka bounce of inner walls, but exits parallel to the edge entered on"}
     }
 }

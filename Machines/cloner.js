@@ -7,6 +7,10 @@ const DEFAULT_CLONER_COLOR = 0x000000FF;
 export default class cloner extends MachineBase {
     constructor(name, machineData, manager) {
         super(name, machineData, manager);
+        // mask colors (defaults): lighter yellow, darker yellow
+        this.LIGHT_MASK = 0xFFC800FF;
+        this.DARK_MASK = 0xCBA000FF;
+
         this.color = DEFAULT_CLONER_COLOR;
         this.data.color = this.color;
         this._propagateAcc = 0;
@@ -326,11 +330,28 @@ export default class cloner extends MachineBase {
         const sy = Math.floor(tileIndex / cols) * th;
 
         // Cancel masking on grayscale corruption flicker frames.
-        const drawSource = flickerGrayFrame
-            ? img
-            : getColorizedTile(img, sx, sy, tw, th, this.color, DEFAULT_CLONER_COLOR);
+        let drawSource = img;
+        if (!flickerGrayFrame) {
+            const cval = (intHex(this.color ?? DEFAULT_CLONER_COLOR) >>> 0);
+            // If cloner has the default color, draw the original sprite (no masking)
+            if (cval !== (DEFAULT_CLONER_COLOR >>> 0)) {
+                const r = (cval >>> 24) & 0xFF;
+                const g = (cval >>> 16) & 0xFF;
+                const b = (cval >>> 8) & 0xFF;
+                const a = cval & 0xFF;
+
+                const lightMul = 1.0;
+                const darkMul = 0.75;
+
+                const light = ((((Math.round(r * lightMul) & 0xFF) << 24) | ((Math.round(g * lightMul) & 0xFF) << 16) | ((Math.round(b * lightMul) & 0xFF) << 8) | (a & 0xFF)) >>> 0);
+                const dark = ((((Math.round(r * darkMul) & 0xFF) << 24) | ((Math.round(g * darkMul) & 0xFF) << 16) | ((Math.round(b * darkMul) & 0xFF) << 8) | (a & 0xFF)) >>> 0);
+
+                drawSource = getColorizedTile(img, sx, sy, tw, th, light, this.LIGHT_MASK, dark, this.DARK_MASK);
+            }
+        }
+
         if (!this.rotating) {
-            if (flickerGrayFrame) {
+            if (flickerGrayFrame || drawSource === img) {
                 ctx.drawImage(drawSource, sx, sy, tw, th, x * size - size / 2, y * size - size / 2, size, size);
             } else {
                 ctx.drawImage(drawSource, 0, 0, tw, th, x * size - size / 2, y * size - size / 2, size, size);
@@ -343,7 +364,7 @@ export default class cloner extends MachineBase {
             } else {
                 ctx.rotate((this.extraRotation - this.rotating * Math.PI / 2));
             }
-            if (flickerGrayFrame) {
+            if (flickerGrayFrame || drawSource === img) {
                 ctx.drawImage(drawSource, sx, sy, tw, th, -size / 2, -size / 2, size, size);
             } else {
                 ctx.drawImage(drawSource, 0, 0, tw, th, -size / 2, -size / 2, size, size);
