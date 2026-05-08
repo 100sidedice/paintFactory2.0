@@ -15,26 +15,36 @@ export default class GoalManager {
             document.body.appendChild(this.container);
         }
 
-        this.goals = []; // { kind: 'color'|'machine', key, colorInt, colorCss, need, have, el, haveEl }
-        this._collisionExpireMs = 1500; // ms after last collision to stop tracking a cell
+        this.goals = [];
+        this._collisionExpireMs = 1500;
         this._goalAnimReq = null;
         this._timeExpired = false;
-        // speed boost state: require all non-time goals to be 'recent' within duration to enable
-        this._recentGoals = new Set(); // set of goal keys recently received/collided
-        this._recentGoalTimeouts = {}; // key -> timeoutId
-        this._speedBoostDurationMs = 3000; // 3 seconds window to consider a goal 'recent'
-        this._speedBoostMultiplier = 10; // 10x speed
+
+        this._recentGoals = new Set();
+        this._recentGoalTimeouts = {};
+        this._speedBoostDurationMs = 3000;
+        this._speedBoostMultiplier = 10;
         this._speedBoostActive = false;
         this._speedBoostAvailable = false;
         this._speedBoostListeners = [];
 
-        // Hook into SidebarManager updates so machine counts refresh when sidebar changes
         const sb = this.levelManager.sidebarManager;
         if (sb) {
             const origRefresh = sb._refreshAllSlots?.bind(sb);
-            if (origRefresh) sb._refreshAllSlots = (...a) => { origRefresh(...a); this._refreshAllGoals(); };
+            if (origRefresh) {
+                sb._refreshAllSlots = (...a) => {
+                    origRefresh(...a);
+                    this._refreshAllGoals();
+                };
+            }
+
             const origUpdate = sb._updateSlotCountDisplay?.bind(sb);
-            if (origUpdate) sb._updateSlotCountDisplay = (...a) => { origUpdate(...a); this._refreshAllGoals(); };
+            if (origUpdate) {
+                sb._updateSlotCountDisplay = (...a) => {
+                    origUpdate(...a);
+                    this._refreshAllGoals();
+                };
+            }
         }
     }
 
@@ -45,158 +55,127 @@ export default class GoalManager {
 
     _notifySpeedBoostListeners() {
         for (const fn of this._speedBoostListeners) {
-            fn({ available: this._speedBoostAvailable, active: this._speedBoostActive });
+            fn({
+                available: this._speedBoostAvailable,
+                active: this._speedBoostActive
+            });
         }
     }
 
     toggleSpeedBoost() {
-        if (this._speedBoostActive) this._deactivateSpeedBoost();
-        else if (this._speedBoostAvailable) this._activateSpeedBoost();
+        if (this._speedBoostActive) {
+            this._deactivateSpeedBoost();
+        } else if (this._speedBoostAvailable) {
+            this._activateSpeedBoost();
+        }
     }
 
     populate(goalObj) {
         this._stopGoalAnimLoop();
+
         this.goals = [];
         this.container.innerHTML = '';
-        // clear any recent-goal timers when populating new goals
+
         for (const k of Object.keys(this._recentGoalTimeouts || {})) {
-            const t = this._recentGoalTimeouts[k]; if (t) clearTimeout(t);
+            const t = this._recentGoalTimeouts[k];
+            if (t) clearTimeout(t);
         }
-        this._recentGoals = new Set(); this._recentGoalTimeouts = {};
+
+        this._recentGoals = new Set();
+        this._recentGoalTimeouts = {};
         this._timeExpired = false;
         this._winTriggered = false;
+
         const existingOverlay = document.getElementById('time-up-overlay');
         if (existingOverlay) existingOverlay.remove();
+
         if (!goalObj) return;
+
         const normalizedGoalObj = this._normalizeGoalObject(goalObj);
         const keys = Object.keys(normalizedGoalObj || {});
-        // Goal keys expected to be hex strings like "#RRGGBBAA" or machine names
+
         for (const k of keys) {
             const need = parseInt(normalizedGoalObj[k], 10) || 0;
-            // determine goal kind: color if key starts with '#', 'time' if key is time, otherwise assume machine name
+
             if (String(k).toLowerCase() === 'time') {
-                const entry = this._createEntry({ kind: 'time', key: k, need });
+                const entry = this._createEntry({
+                    kind: 'time',
+                    key: k,
+                    need
+                });
+
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
+
             } else if (String(k).startsWith('#')) {
                 let colorInt = intHex(k);
                 const css = stringHex(colorInt);
-                const entry = this._createEntry({ kind: 'color', key: k, colorInt, colorCss: css, need });
+
+                const entry = this._createEntry({
+                    kind: 'color',
+                    key: k,
+                    colorInt,
+                    colorCss: css,
+                    need
+                });
+
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
+
             } else {
                 const type = String(k);
-                const entry = this._createEntry({ kind: 'machine', key: type, need });
+
+                const entry = this._createEntry({
+                    kind: 'machine',
+                    key: type,
+                    need
+                });
+
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
             }
-            // attach dev-mode click handler to allow editing goals
-            try {
-                const last = this.goals[this.goals.length - 1];
-                if (last && last.el) {
-                    last.el.addEventListener('click', (ev) => {
-                        if (!this.levelManager || !this.levelManager.devMode) return;
-                        ev.stopPropagation();
-                        const cur = last;
-                        const sample = cur.kind === 'color' ? `dye, ${cur.key}, ${cur.need}` : (cur.kind === 'machine' ? `machine, ${cur.key}, ${cur.need}` : `time, ${cur.need}`);
-                        const input = prompt('Edit goal (examples: dye,#RRGGBBAA,100 OR machine,conveyor,10 OR time,100). Type "del" or "remove" to delete.', sample);
-                        if (!input) return;
-                        const parts = input.split(',').map(p=>p.trim()).filter(p=>p!=='');
-                        if (!parts || parts.length === 0) return;
-                        if (/^\d+$/.test(parts[0])) {
-                            const position = parseInt(parts[0], 10);
-                            const goalObjRef = this.levelManager.currentLevelData = this.levelManager.currentLevelData || {};
-                            goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
-                            const goalsRef = goalObjRef.Goal;
-                            const reordered = this._moveGoalToPosition(goalsRef, cur.key, position);
-                            goalObjRef.Goal = reordered;
-                            goalObjRef.goal = reordered;
-                            this.populate(reordered);
-                            return;
-                        }
-                        const cmd = parts[0].toLowerCase();
-                        const goalObjRef = this.levelManager.currentLevelData = this.levelManager.currentLevelData || {};
-                        goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
-                        const goalsRef = goalObjRef.Goal;
-                        // delete command
-                        if (cmd === 'del' || cmd === 'delete' || cmd === 'remove' || cmd === 'rm') {
-                            try { delete goalsRef[cur.key]; } catch(e){}
-                            if (String(cur.key).toLowerCase() === 'time') delete goalsRef.Time;
-                            this.populate(goalsRef);
-                            return;
-                        }
-                        // remove previous key (we'll replace)
-                        try { delete goalsRef[cur.key]; } catch(e){}
-                        if (cmd === 'dye' || cmd === 'color' || cmd === '#') {
-                            const col = parts[1] ? (parts[1].startsWith('#') ? parts[1].toUpperCase() : `#${parts[1].toUpperCase()}`) : cur.key;
-                            const cnt = parseInt(parts[2], 10) || cur.need || 0;
-                            goalsRef[col] = cnt;
-                        } else if (cmd === 'machine' || cmd === 'm') {
-                            const m = parts[1] || cur.key;
-                            const cnt = parseInt(parts[2], 10) || cur.need || 0;
-                            goalsRef[m] = cnt;
-                        } else if (cmd === 'time') {
-                            const cnt = parseInt(parts[1], 10) || cur.need || 0;
-                            goalsRef['time'] = cnt;
-                            delete goalsRef.Time;
-                        } else {
-                            // fallback: try to interpret as 'machineName,count'
-                            const maybeName = parts[0];
-                            const maybeCnt = parseInt(parts[1], 10) || cur.need || 0;
-                            goalsRef[maybeName] = maybeCnt;
-                        }
-                        // re-populate UI
-                        this.populate(goalsRef);
-                    });
-                }
-            } catch (e) {
-                console.debug('GoalManager: attach edit handler failed', e);
-            }
         }
-        // initial refresh to populate counts
+
         this._refreshAllGoals();
-        // start animating machine swatches (if any)
         this._startGoalAnimLoop();
     }
 
     _normalizeGoalObject(goalObj) {
         if (!goalObj || typeof goalObj !== 'object') return goalObj;
+
         const normalized = { ...goalObj };
+
         const timeValue = normalized.time ?? normalized.Time;
+
         if (timeValue !== undefined) {
             normalized.time = timeValue;
         }
+
         delete normalized.Time;
+
         return normalized;
     }
 
-    _moveGoalToPosition(goalObj, key, position) {
-        if (!goalObj || typeof goalObj !== 'object') return goalObj;
-        const entries = Object.entries(this._normalizeGoalObject(goalObj));
-        const currentIndex = entries.findIndex(([entryKey]) => String(entryKey) === String(key));
-        if (currentIndex < 0) return { ...this._normalizeGoalObject(goalObj) };
-        const safePosition = Math.max(1, Math.min(entries.length, position || 1));
-        const [picked] = entries.splice(currentIndex, 1);
-        entries.splice(safePosition - 1, 0, picked);
-        return Object.fromEntries(entries);
-    }
     _createEntry(opts) {
         const wrap = document.createElement('div');
         wrap.className = 'goal-entry';
 
         const sw = document.createElement('canvas');
-        // scale canvas intrinsic size ~1.5x to match CSS scaling (24 -> 36)
-        sw.width = 36; sw.height = 36;
+        sw.width = 36;
+        sw.height = 36;
         sw.className = 'goal-swatch';
 
         const text = document.createElement('div');
         text.className = 'goal-text';
+
         const haveSpan = document.createElement('span');
         haveSpan.className = 'goal-have';
         haveSpan.textContent = '0';
+
         const sep = document.createElement('span');
         sep.className = 'goal-sep';
         sep.textContent = ' / ';
+
         const needSpan = document.createElement('span');
         needSpan.className = 'goal-need';
         needSpan.textContent = String(opts.need || 0);
@@ -205,151 +184,316 @@ export default class GoalManager {
         text.appendChild(sep);
         text.appendChild(needSpan);
 
-        // draw depending on kind
         if (opts.kind === 'machine') {
-            // draw machine texture instead of item texture
             const type = opts.key;
-            const img = this.assetManager.get('machines-image');
-            // store type on canvas for animation frame updates
+
             sw.dataset.machineType = String(type);
-            const data = this.levelManager.dataManager.getData(joinDots('machineData', type)) ?? {};
-            if (img && data && data.texture) {
-                // draw first frame immediately; animation loop will update later
-                this._drawMachineFrame(sw, type, performance.now());
-            } else {
-                const ctx = sw.getContext('2d');
-                ctx.fillStyle = '#333333';
-                ctx.fillRect(0,0,sw.width,sw.height);
-            }
+
+            this._drawMachineFrame(sw, type, performance.now());
+
             wrap.appendChild(sw);
             wrap.appendChild(text);
-            return { kind: 'machine', key: opts.key, need: opts.need||0, have: 0, el: wrap, haveEl: haveSpan, collidedCells: new Set(), _cellTimers: {}, swCanvas: sw };
+
+            return {
+                kind: 'machine',
+                key: opts.key,
+                need: opts.need || 0,
+                have: 0,
+                el: wrap,
+                haveEl: haveSpan,
+                collidedCells: new Set(),
+                _cellTimers: {},
+                swCanvas: sw
+            };
+
         } else if (opts.kind === 'time') {
-            // time goal: show hourglass animation + remaining seconds
             const seconds = opts.need || 0;
-            const img = this.assetManager.get('hourglass');
-            // use haveSpan as remaining display and hide slash/need
+
             haveSpan.textContent = String(seconds);
             sep.textContent = '';
             needSpan.textContent = '';
+
             wrap.appendChild(sw);
             wrap.appendChild(text);
+
             const start = performance.now();
-            const entry = { kind: 'time', key: opts.key, need: seconds, el: wrap, haveEl: haveSpan, swCanvas: sw, startTimeMs: start, endTimeMs: start + (seconds * 1000), remaining: seconds };
-            if (img) this._drawTimeFrame(sw, entry, start);
+
+            const entry = {
+                kind: 'time',
+                key: opts.key,
+                need: seconds,
+                el: wrap,
+                haveEl: haveSpan,
+                swCanvas: sw,
+                startTimeMs: start,
+                endTimeMs: start + (seconds * 1000),
+                remaining: seconds
+            };
+
+            this._drawTimeFrame(sw, entry, start);
+
             return entry;
+
         } else {
-            // color goal
             const colorInt = opts.colorInt ?? null;
             const colorCss = opts.colorCss ?? stringHex(colorInt);
+
             const img = this.assetManager.get('color');
+
             if (img) {
-                const sprite = composeMaskedFrame(img, 16, [1,0], [0,0], colorInt, 0x00FF00FF);
+                const sprite = composeMaskedFrame(
+                    img,
+                    16,
+                    [1, 0],
+                    [0, 0],
+                    colorInt,
+                    0x00FF00FF
+                );
+
                 const ctx = sw.getContext('2d');
                 ctx.imageSmoothingEnabled = false;
-                ctx.drawImage(sprite, 0, 0, sprite.width, sprite.height, 0, 0, sw.width, sw.height);
+
+                ctx.drawImage(
+                    sprite,
+                    0,
+                    0,
+                    sprite.width,
+                    sprite.height,
+                    0,
+                    0,
+                    sw.width,
+                    sw.height
+                );
+
             } else {
                 const ctx = sw.getContext('2d');
                 ctx.fillStyle = colorCss || '#FFFFFF';
-                ctx.fillRect(0,0,sw.width,sw.height);
+                ctx.fillRect(0, 0, sw.width, sw.height);
             }
+
             wrap.appendChild(sw);
             wrap.appendChild(text);
-            return { kind: 'color', key: opts.key, colorInt: opts.colorInt, colorCss: opts.colorCss, need: opts.need||0, have: 0, el: wrap, haveEl: haveSpan };
+
+            return {
+                kind: 'color',
+                key: opts.key,
+                colorInt: opts.colorInt,
+                colorCss: opts.colorCss,
+                need: opts.need || 0,
+                have: 0,
+                el: wrap,
+                haveEl: haveSpan
+            };
         }
     }
 
     _drawMachineFrame(sw, type, nowMs) {
         const ctx = sw.getContext('2d');
-        ctx.clearRect(0,0,sw.width,sw.height);
+
+        ctx.clearRect(0, 0, sw.width, sw.height);
+
         const img = this.assetManager.get('machines-image');
         if (!img) return;
-        const data = this.levelManager.dataManager.getData(joinDots('machineData', type)) ?? {};
+
+        const data = this.levelManager.dataManager.getData(
+            joinDots('machineData', type)
+        ) ?? {};
+
         const row = (data.texture && data.texture.row) ?? 0;
-        const tw = 16; const th = 16;
+
+        const tw = 16;
+        const th = 16;
+
         const cols = Math.max(1, Math.floor(img.width / tw));
         const tileIndex = row * cols;
+
         let fps = (data.texture && data.texture.fps) ?? 0;
+
         if (!fps || fps <= 0) fps = 4;
-        const frameCount = Math.max(1, data.texture?.frameCount ?? cols);
+
+        const frameCount = Math.max(
+            1,
+            data.texture?.frameCount ?? cols
+        );
+
         const frameLimit = Math.min(cols, frameCount);
+
         const frame = Math.floor((nowMs * fps) / 1000) % frameLimit;
+
         const sx = frame * tw;
         const sy = Math.floor(tileIndex / cols) * th;
+
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
+
+        ctx.drawImage(
+            img,
+            sx,
+            sy,
+            tw,
+            th,
+            0,
+            0,
+            sw.width,
+            sw.height
+        );
     }
 
     _drawTimeFrame(sw, g, nowMs) {
         const ctx = sw.getContext('2d');
-        ctx.clearRect(0,0,sw.width,sw.height);
+
+        ctx.clearRect(0, 0, sw.width, sw.height);
+
         const img = this.assetManager.get('hourglass');
+        if (!img) return;
+
         const rows = 2;
         const th = Math.max(1, Math.floor(img.height / rows));
-        const tw = th; // assume square frames
+        const tw = th;
+
         const cols = Math.max(1, Math.floor(img.width / tw));
+
         const totalMs = Math.max(1, (g.need || 0) * 1000);
+
         const devMode = !!this.levelManager?.devMode;
-        if (devMode) {
-            if (!g._devModeFrozen) {
-                g._devModeFrozen = true;
-                g._devModeRemainingMs = Math.max(0, (g.endTimeMs || 0) - nowMs);
+        const paused = !!this.factoryManager?.paused;
+
+        // FREEZE TIMER DURING DEV MODE OR PAUSE
+        const shouldFreeze = devMode || paused;
+
+        if (shouldFreeze) {
+            if (!g._timerFrozen) {
+                g._timerFrozen = true;
+
+                g._frozenRemainingMs = Math.max(
+                    0,
+                    (g.endTimeMs || 0) - nowMs
+                );
             }
-        } else if (g._devModeFrozen) {
-            const remaining = Math.max(0, g._devModeRemainingMs ?? Math.max(0, (g.endTimeMs || 0) - nowMs));
+        } else if (g._timerFrozen) {
+            const remaining = Math.max(
+                0,
+                g._frozenRemainingMs ??
+                Math.max(0, (g.endTimeMs || 0) - nowMs)
+            );
+
             g.endTimeMs = nowMs + remaining;
-            g._devModeFrozen = false;
-            delete g._devModeRemainingMs;
+
+            g._timerFrozen = false;
+
+            delete g._frozenRemainingMs;
         }
-        let remainingMs = devMode ? Math.max(0, g._devModeRemainingMs ?? Math.max(0, (g.endTimeMs || 0) - nowMs)) : Math.max(0, (g.endTimeMs || 0) - nowMs);
+
+        let remainingMs;
+
+        if (shouldFreeze) {
+            remainingMs = Math.max(
+                0,
+                g._frozenRemainingMs ??
+                Math.max(0, (g.endTimeMs || 0) - nowMs)
+            );
+        } else {
+            remainingMs = Math.max(
+                0,
+                (g.endTimeMs || 0) - nowMs
+            );
+        }
+
         const remainingSec = Math.ceil(remainingMs / 1000);
+
         g.remaining = remainingSec;
-        if (g.haveEl) g.haveEl.textContent = String(remainingSec);
+
+        if (g.haveEl) {
+            g.haveEl.textContent = String(remainingSec);
+        }
 
         if (remainingMs > 0) {
-            // map remaining fraction to first-row frames (0..cols-1)
-            // frames should advance as time elapses, so invert the remaining fraction
-            const frac = Math.max(0, Math.min(1, remainingMs / totalMs));
-            const frame = Math.floor((1 - frac) * (cols - 1));
+            const frac = Math.max(
+                0,
+                Math.min(1, remainingMs / totalMs)
+            );
+
+            const frame = Math.floor(
+                (1 - frac) * (cols - 1)
+            );
+
             const sx = frame * tw;
             const sy = 0;
+
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
+
+            ctx.drawImage(
+                img,
+                sx,
+                sy,
+                tw,
+                th,
+                0,
+                0,
+                sw.width,
+                sw.height
+            );
+
         } else {
-            // time up frame: second row, first column
             const sx = 0;
             const sy = th;
+
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(img, sx, sy, tw, th, 0, 0, sw.width, sw.height);
+
+            ctx.drawImage(
+                img,
+                sx,
+                sy,
+                tw,
+                th,
+                0,
+                0,
+                sw.width,
+                sw.height
+            );
         }
     }
 
     _startGoalAnimLoop() {
         if (this._goalAnimReq) return;
+
         const loop = (ts) => {
             if (!this.goals || this.goals.length === 0) {
                 this._goalAnimReq = requestAnimationFrame(loop);
                 return;
             }
+
             for (const g of this.goals) {
                 if (g.kind === 'machine') {
-                    const sw = g.swCanvas ?? g.el.querySelector('canvas.goal-swatch');
+                    const sw = g.swCanvas ??
+                        g.el.querySelector('canvas.goal-swatch');
+
                     if (!sw) continue;
-                    const type = String(g.key);
-                    this._drawMachineFrame(sw, type, ts);
+
+                    this._drawMachineFrame(sw, String(g.key), ts);
+
                 } else if (g.kind === 'time') {
-                    const sw = g.swCanvas ?? g.el.querySelector('canvas.goal-swatch');
+                    const sw = g.swCanvas ??
+                        g.el.querySelector('canvas.goal-swatch');
+
                     if (!sw) continue;
+
                     this._drawTimeFrame(sw, g, ts);
-                    // if time expired and not yet handled, trigger expiry
-                    // if time expired and not yet handled, trigger expiry (skip while dev mode is active)
-                    if (!this.levelManager?.devMode && (g.endTimeMs || 0) <= ts && !this._timeExpired) {
+
+                    // DON'T EXPIRE WHILE PAUSED
+                    if (
+                        !this.levelManager?.devMode &&
+                        !this.factoryManager?.paused &&
+                        (g.endTimeMs || 0) <= ts &&
+                        !this._timeExpired
+                    ) {
                         this._onTimeExpired();
                     }
                 }
             }
+
             this._goalAnimReq = requestAnimationFrame(loop);
         };
+
         this._goalAnimReq = requestAnimationFrame(loop);
     }
 
@@ -359,6 +503,7 @@ export default class GoalManager {
             this._goalAnimReq = null;
         }
     }
+
 
     // record a sold item color (int hex or css); increments have count for matching goal if present
     recordSale(color) {
