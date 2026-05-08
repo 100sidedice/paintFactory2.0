@@ -103,11 +103,9 @@ export default class seller extends MachineBase {
         const collision = this.data.collision;
         const colliding = isItemColliding(this.data.x, this.data.y, item, size, collision, this.data.rot);
         if (colliding) {
-            const itemColor = (item && item.color !== undefined && item.color !== null) ? item.color : null;
-
             if (this.corrupted) {
                 // Corruption removes progress from the matching color goal and consumes the item.
-                this._adjustColorGoal(itemColor ?? this.color, -1);
+                this._adjustColorGoal(item.color, -1);
                 this.manager.removeItem(item);
                 return;
             }
@@ -123,7 +121,7 @@ export default class seller extends MachineBase {
 
             // Default behavior: sell whatever entered.
             const gm = this.manager?.levelManager?.goalManager;
-            if (gm && typeof gm.recordSale === 'function') gm.recordSale(itemColor);
+            if (gm && typeof gm.recordSale === 'function') gm.recordSale(item.color);
             this.manager.removeItem(item);
         }
     }
@@ -176,16 +174,20 @@ export default class seller extends MachineBase {
                 | ((Math.round(((baseColor >>> 8) & 0xFF) * 0.75) & 0xFF) << 8)
                 | (baseColor & 0xFF)) >>> 0);
 
-        const drawSource = this._isColorized() || this.corrupted
-            ? getColorizedTile(img, sx, sy, tw, th, activeLight, SELLER_LIGHT_MASK, activeDark, SELLER_DARK_MASK)
-            : null;
+        const drawSource = getColorizedTile(
+            img,
+            sx,
+            sy,
+            tw,
+            th,
+            activeLight,
+            SELLER_LIGHT_MASK,
+            activeDark,
+            SELLER_DARK_MASK
+        );
 
         if (!this.rotating) {
-            if (drawSource) {
-                ctx.drawImage(drawSource, 0, 0, tw, th, x * size - size / 2, y * size - size / 2, size, size);
-            } else {
-                ctx.drawImage(img, sx, sy, tw, th, x * size - size / 2, y * size - size / 2, size, size);
-            }
+            ctx.drawImage(drawSource, 0, 0, tw, th, x * size - size / 2, y * size - size / 2, size, size);
         } else {
             ctx.save();
             ctx.translate(x * size, y * size);
@@ -194,11 +196,7 @@ export default class seller extends MachineBase {
             } else {
                 ctx.rotate((this.extraRotation - this.rotating * Math.PI / 2));
             }
-            if (drawSource) {
-                ctx.drawImage(drawSource, 0, 0, tw, th, -size / 2, -size / 2, size, size);
-            } else {
-                ctx.drawImage(img, sx, sy, tw, th, -size / 2, -size / 2, size, size);
-            }
+            ctx.drawImage(drawSource, 0, 0, tw, th, -size / 2, -size / 2, size, size);
             ctx.restore();
         }
     }

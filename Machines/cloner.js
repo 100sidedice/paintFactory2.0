@@ -135,6 +135,15 @@ export default class cloner extends MachineBase {
                     machine.nextSpread = 100 + Math.random() * 200;
                 }
             }
+            if (machine.name.split('-')[0] === 'seller') {
+                machine.color = this.color;
+                machine.lastColorChange = performance.now();
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                }
+            }
             if (machine.name.split('-')[0] === 'spawner') {
                 machine.color = this.color;
                 machine.lastColorChange = performance.now();
