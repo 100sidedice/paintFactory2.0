@@ -379,8 +379,8 @@ canvas {
     height: 12dvh;
     transform: translateX(-50%);
     padding: 0.8dvh 0;
-    z-index: 50;
-    pointer-events: none; /* allow clicks to pass through */
+    z-index: 5;
+    pointer-events: none; /* allow clicks to pass through by default */
 }
 #level-text {
     position: absolute;
@@ -388,11 +388,12 @@ canvas {
     transform: translateX(-50%);
     top: 9dvh; /* positioned under the id */
     display: block;
+    white-space: nowrap;
     padding: 0.4dvh 0.8dvh;
     
     color: #00FF00CC;
     font-size: 3dvh;
-    z-index: 51;
+    z-index: 6;
     pointer-events: none;
     text-shadow: #000000FF 0 0 0.8dvh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -407,7 +408,7 @@ canvas {
     padding: 0.4dvh 0.8dvh;
     color: #FFFFFFCC;
     font-size: 5dvh;
-    z-index: 51;
+    z-index: 6;
     pointer-events: none;
     text-shadow: #000000FF 0 0 0.8dvh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -420,6 +421,20 @@ body.dev-mode #level-id {
     pointer-events: auto; /* allow clicking to edit */
     cursor: pointer;
 }
+
+body.dev-mode #level-text {
+    pointer-events: auto; /* allow clicking to edit */
+    cursor: pointer;
+}
+
+body.dev-mode #funny-text {
+    pointer-events: auto; /* allow clicking to edit */
+    cursor: pointer;
+}
+
+body.dev-mode #level-header {
+    pointer-events: auto; /* allow parent to receive clicks in dev mode */
+}
 #funny-text {
     position: fixed;
     bottom: 0;
@@ -429,7 +444,7 @@ body.dev-mode #level-id {
     color: #FFFFFFCC;
     font-size: 3dvh;
     white-space: nowrap; /* prevent wrapping */
-    z-index: 51;
+    z-index: 6;
     pointer-events: auto;
     text-shadow: #000000FF 0 0 0.8dvh;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

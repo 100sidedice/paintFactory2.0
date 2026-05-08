@@ -524,7 +524,7 @@ export default class FactoryManager {
     }
 
     getMachine(x,y) {
-        if(!y){
+        if (y === undefined || y === null) {
             // if only one, get by string key
             const [keyXRaw, keyYRaw] = String(x).split(',');
             const keyX = parseInt(keyXRaw, 10);

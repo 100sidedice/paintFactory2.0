@@ -1,6 +1,7 @@
 import { composeMaskedFrame } from '../Helpers/imageHelpers.js';
 import { intHex, stringHex } from '../Helpers/colorHelpers.js';
 import { joinDots } from '../Helpers/pathHelpers.js';
+import { customPrompt } from '../World/CustomPrompt.js';
 
 export default class GoalManager {
     constructor(assetManager, factoryManager, levelManager) {
@@ -27,6 +28,9 @@ export default class GoalManager {
         this._speedBoostActive = false;
         this._speedBoostAvailable = false;
         this._speedBoostListeners = [];
+        
+        // Store input manager for goal click handling
+        this.input = levelManager?.input || null;
 
         const sb = this.levelManager.sidebarManager;
         if (sb) {
@@ -93,6 +97,7 @@ export default class GoalManager {
 
         const normalizedGoalObj = this._normalizeGoalObject(goalObj);
         const keys = Object.keys(normalizedGoalObj || {});
+        console.log(`GoalManager.populate: ${keys.length} goals`);
 
         for (const k of keys) {
             const need = parseInt(normalizedGoalObj[k], 10) || 0;
@@ -106,6 +111,8 @@ export default class GoalManager {
 
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
+                this._attachGoalClickHandler(entry);
+                console.log(`GoalManager: attached handler to time goal`);
 
             } else if (String(k).startsWith('#')) {
                 let colorInt = intHex(k);
@@ -121,6 +128,8 @@ export default class GoalManager {
 
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
+                this._attachGoalClickHandler(entry);
+                console.log(`GoalManager: attached handler to color goal ${k}`);
 
             } else {
                 const type = String(k);
@@ -133,11 +142,127 @@ export default class GoalManager {
 
                 this.container.appendChild(entry.el);
                 this.goals.push(entry);
+                this._attachGoalClickHandler(entry);
+                console.log(`GoalManager: attached handler to machine goal ${k}`);
             }
         }
 
         this._refreshAllGoals();
         this._startGoalAnimLoop();
+    }
+
+    _attachGoalClickHandler(entry) {
+        if (!entry || !entry.el) return;
+        
+        // Use the element's click handler with pointer-events and custom approach for Firefox compatibility
+        entry.el.style.cursor = 'pointer';
+        entry.el.addEventListener('click', async (ev) => {
+            console.log(`Goal entry clicked: ${entry.key}`, ev);
+            if (!this.levelManager?.devMode) {
+                console.log(`devMode is ${this.levelManager?.devMode}, skipping`);
+                return;
+            }
+            ev.stopPropagation();
+            
+            const key = entry.key;
+            const kind = entry.kind;
+            
+            // Build sample text based on goal kind
+            let sample = '';
+            if (kind === 'time') {
+                sample = `time, ${entry.need || 0}`;
+            } else if (kind === 'color') {
+                sample = `dye, ${entry.key}, ${entry.need || 0}`;
+            } else if (kind === 'machine') {
+                sample = `machine, ${entry.key}, ${entry.need || 0}`;
+            }
+            
+            const input = await customPrompt('Edit goal (or press Delete)', sample);
+            if (!input) return;
+
+            // support the prompt's delete button token
+            if (input === '__PROMPT_DELETE__') {
+                // Remove this goal
+                const goalObjRef = this.levelManager.currentLevelData = this.levelManager.currentLevelData || {};
+                goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
+                 const actualKey = Object.keys(goalObjRef.Goal || {}).find(k => String(k).toLowerCase() === String(key).toLowerCase()) || key;
+                 delete goalObjRef.Goal[actualKey];
+                this.populate(goalObjRef.Goal);
+                return;
+            }
+            
+            const lower = input.trim().toLowerCase();
+            if (lower === 'del' || lower === 'delete' || lower === 'remove' || lower === 'rm') {
+                // Remove this goal (text typed)
+                const goalObjRef = this.levelManager.currentLevelData = this.levelManager.currentLevelData || {};
+                goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
+                 const actualKey = Object.keys(goalObjRef.Goal || {}).find(k => String(k).toLowerCase() === String(key).toLowerCase()) || key;
+                 delete goalObjRef.Goal[actualKey];
+                this.populate(goalObjRef.Goal);
+                return;
+            }
+            
+            // Parse and update goal
+            const parts = input.split(',').map(p=>p.trim()).filter(p=>p!=='');
+            if (!parts || parts.length === 0) return;
+            
+            const cmd = parts[0].toLowerCase();
+            const goalObjRef = this.levelManager.currentLevelData = this.levelManager.currentLevelData || {};
+            goalObjRef.Goal = goalObjRef.Goal || goalObjRef.goal || {};
+            const goalsRef = goalObjRef.Goal;
+
+            // Single-number input should shift this goal's position (1-based index)
+            // rather than replace the key or modify amounts. Example: entering
+            // "3" moves this goal to slot 3, shifting others.
+            if (parts.length === 1 && /^[0-9]+$/.test(parts[0])) {
+                const desired = parseInt(parts[0], 10);
+                if (Number.isFinite(desired) && desired > 0) {
+                    const oldKeys = Object.keys(goalsRef || {});
+                        const matchKey = oldKeys.find(k => String(k).toLowerCase() === String(actualKey).toLowerCase()) || actualKey;
+                        if (oldKeys.includes(matchKey)) {
+                            const filtered = oldKeys.filter(k => String(k).toLowerCase() !== String(matchKey).toLowerCase());
+                        const insertIdx = Math.max(0, Math.min(filtered.length, desired - 1));
+                            filtered.splice(insertIdx, 0, matchKey);
+                        const newGoals = {};
+                        for (const k of filtered) newGoals[k] = goalsRef[k];
+                        goalObjRef.Goal = newGoals;
+                        this.populate(newGoals);
+                        return;
+                    }
+                }
+            }
+
+            if (cmd === 'dye' || cmd === 'color' || cmd === '#') {
+                const col = parts[1] ? (parts[1].startsWith('#') ? parts[1].toUpperCase() : `#${parts[1].toUpperCase()}`) : null;
+                const cnt = parseInt(parts[2], 10) || 0;
+                // Remove old key if it changed
+                    const matchKey = Object.keys(goalsRef || {}).find(k => String(k).toLowerCase() === String(actualKey).toLowerCase()) || actualKey;
+                    if (col && matchKey !== col) delete goalsRef[matchKey];
+                if (col) goalsRef[col] = cnt;
+            } else if (cmd === 'machine' || cmd === 'm') {
+                const m = parts[1] || null;
+                const cnt = parseInt(parts[2], 10) || 0;
+                // Remove old key if it changed
+                    const matchKey = Object.keys(goalsRef || {}).find(k => String(k).toLowerCase() === String(actualKey).toLowerCase()) || actualKey;
+                    if (m && matchKey !== m) delete goalsRef[matchKey];
+                if (m) goalsRef[m] = cnt;
+            } else if (cmd === 'time') {
+                const cnt = parseInt(parts[1], 10) || 0;
+                // Remove old time if present
+                delete goalsRef['time'];
+                delete goalsRef['Time'];
+                goalsRef['time'] = cnt;
+            } else {
+                const maybeName = parts[0];
+                const maybeCnt = parseInt(parts[1], 10) || 0;
+                // Remove old key if it changed
+                    const matchKey = Object.keys(goalsRef || {}).find(k => String(k).toLowerCase() === String(actualKey).toLowerCase()) || actualKey;
+                    if (maybeName && matchKey !== maybeName) delete goalsRef[matchKey];
+                goalsRef[maybeName] = maybeCnt;
+            }
+            
+            this.populate(goalsRef);
+        });
     }
 
     _normalizeGoalObject(goalObj) {

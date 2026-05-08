@@ -1,0 +1,45 @@
+{
+    "Header": "A mysterious box",
+    "Description": "Sell 100 of each color.",
+    "funny": "Paint corp has given us this box. We have zero clue what it does.",
+    "Hints": [
+        "Click a machine in the sidebar to select it, then click on the grid to place it",
+        "Right click a machine in the sidebar to see it's description",
+        "Make a path from the spawner to the goal using conveyor belts"
+    ],
+    "Goal": {
+        "#0000FFFF": 100,
+        "#00FF00FF": 100,
+        "#FF0000FF": 100,
+        "#FFFF00FF": 100,
+        "#00FFFFFF": 100,
+        "#FF00FFFF": 100,
+        "#FFFFFFFF": 100,
+        "time": 300
+    },
+    "Machines": [
+        ["delete",1],
+        ["delete-rotate",1],
+        ["delete-select",1],
+        ["mixer",9999],
+        ["mixer-left",9999],
+        ["mixer-right",9999],
+        ["conveyor",99],
+        ["conveyor-left",99],
+        ["conveyor-right",99],
+        ["conveyor-merge",99],
+        ["conveyor-mergeleft",99],
+        ["conveyor-mergeright",99],
+        ["spawner",1],
+        ["portal-in",9999],
+        ["portal",9999]
+    ],
+    "spawner-items": [
+        {"color":4294967295,"count":1}
+    ],
+    "Placed": {
+        "4.4": "portal-in",
+        "7.4": "cloner",
+        "10.4": "portal"
+    }
+}

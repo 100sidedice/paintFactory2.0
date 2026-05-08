@@ -27,7 +27,7 @@ export default class Input {
         if (!el) return false;
   
         // treat these selectors as UI - add more selectors if you have other UI containers
-        const uiEl = el.closest('.ui');
+        const uiEl = el.closest('.ui, #level-header, #funny-text');
         if (!uiEl) return false;
         // Element must actually be visible (checks visibility and opacity)
         if (!uiEl.checkVisibility({ visibilityProperty: true, opacityProperty: true })) return false;
@@ -354,7 +354,9 @@ export default class Input {
             const pressKey = `${keyBase}:press`;
             const heldKey = `${keyBase}:held`;
             // prevent default browser action if we have handlers for this mouse button
-            if (this.hasBindingPrefix(`${keyBase}:`)) {
+            // BUT only if NOT over UI (let UI elements handle their own events)
+            const overUI = this._isOverUI(e.clientX, e.clientY);
+            if (!overUI && this.hasBindingPrefix(`${keyBase}:`)) {
                 try { e.preventDefault(); } catch (err) { /* ignore */ }
             }
             // prevent double mousedown handling if already active

@@ -1,6 +1,7 @@
 import { joinDots } from "../Helpers/pathHelpers.js";
 import { stringHex, intHex } from "../Helpers/colorHelpers.js";
 import { getImageId, hexToRgba, getColorizedTile } from "../../Machines/components/masking.js";
+import { customPrompt } from "../World/CustomPrompt.js";
 
 // Constants to replace magic numbers and repeated strings
 const ROTATION_STEP = 90; // Degrees to rotate machines (90° increments)
@@ -446,7 +447,7 @@ export default class SidebarManager {
         });
 
         // middle-click (auxclick button===1) to edit slot variants / counts when in dev mode
-        slot.addEventListener('auxclick', (e) => {
+        slot.addEventListener('auxclick', async (e) => {
             try {
                 if (e.button !== 1) return; // middle click only
                 const lm = this.factoryManager && this.factoryManager.levelManager ? this.factoryManager.levelManager : null;
@@ -458,8 +459,18 @@ export default class SidebarManager {
                 const levelData = lm.currentLevelData = lm.currentLevelData || {};
                 levelData.Machines = levelData.Machines || levelData.machines || [];
                 const sample = this._buildSlotPromptSample(levelData, (base.split && base.split('-')[0]) || base);
-                const input = prompt('Edit slot machines. Enter a new base slot, a JSON array, a single integer to move the slot, or "remove"/"del"/"rm" to remove it.', sample);
+                const input = await customPrompt('Edit slot machines. Enter a new base slot, a JSON array, a single integer to move the slot, or "remove"/"del"/"rm" to remove it.', sample);
                 if (!input) return;
+                // support prompt's delete button token
+                if (input === '__PROMPT_DELETE__') {
+                    const groups = this._groupMachineEntries(levelData.Machines);
+                    const slotBase = (base.split && base.split('-')[0]) || base;
+                    const filtered = groups.filter(group => group.base !== slotBase);
+                    levelData.Machines = this._flattenMachineGroups(filtered);
+                    levelData.machines = levelData.Machines;
+                    this.populateSidebar(levelData);
+                    return;
+                }
                 if (/^\d+$/.test(input.trim())) {
                     const position = parseInt(input.trim(), 10);
                     const groups = this._groupMachineEntries(levelData.Machines);
@@ -1042,49 +1053,9 @@ export default class SidebarManager {
     }
 
     _handleDoubleTap(gridX, gridY) {
-        const machine = this.factoryManager.getMachine(gridX, gridY);
-        if (!machine) return;
-        const type = machine.name ?? machine.data?.type ?? null;
-        if (!type) return;
-        const base = type.split('-')[0];
-        for (let i = 0; i < this.slots.length; i++) {
-            const slot = this.slots[i];
-            let variants = JSON.parse(slot.dataset.variants ?? '[]');
-            if (!variants.some(v => v.split('-')[0] === base)) continue;
-            let cur = variants.indexOf(type);
-            if (cur === -1) cur = 0;
-            for (let t = 1; t <= variants.length; t++) {
-                const nextIdx = (cur + t) % variants.length;
-                const newType = variants[nextIdx];
-                if (newType === type) continue;
-                if (this._getRemainingCount(newType) <= 0) continue;
-                const rot = parseInt(machine.data?.rot ?? 0, 10) || 0;
-                const removed = this.factoryManager.removeMachine(gridX, gridY);
-                if (!removed) return;
-                const placedMachine = this.factoryManager.addMachine(newType, gridX, gridY, rot);
-                if (!placedMachine) return;
-                this._updateSlotCountDisplay(slot);
-                for (let s = 0; s < this.slots.length; s++) this._updateSlotCountDisplay(this.slots[s]);
-                const size = window.innerHeight / 9;
-                const cx = gridX * size + size / 2;
-                const cy = gridY * size + size / 2;
-                this.particleManager.spawnAt(cx, cy, { count: 8, colors: [0x00FFFFFF, 0xFFA500FF], size: 4, speed: 300, life: 500 });
-                const newVariantIndex = variants.indexOf(newType);
-                if (newVariantIndex !== -1) {
-                    slot.dataset.variantIndex = String(newVariantIndex);
-                    slot.dataset.machineType = newType;
-                    const icon = slot.querySelector('canvas.machine-icon');
-                    if (icon) this._drawIcon(icon, newType);
-                    const indicator = slot.querySelector('.variant-indicator');
-                    if (indicator) {
-                        const dots = Array.from(indicator.children);
-                        dots.forEach((d, i) => d.classList.toggle('active', i === newVariantIndex));
-                    }
-                }
-                return;
-            }
-            return;
-        }
+        // Disabled: world double-tap variant swap is removed.
+        // Variant cycling remains available in the UI sidebar only.
+        return;
     }
 
     _getGridCoordinates(screenPos) {

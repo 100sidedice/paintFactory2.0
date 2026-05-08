@@ -217,7 +217,7 @@ class PortalParticle {
             const axis = col.axis || 'center';
             if (col.entering === 'true' && col.type === 'portal-in'){
                 const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
-                // portal vortex: if a beam passes through the vortex, the portal subtracts it's color from the beam
+                // portal vortex: corrupted portals halve beam alpha; otherwise they subtract their color from the beam
                 const machine = this.manager.getMachine(cellX, cellY);
                 const portalColor = intHex(machine.color);
                 const beamColor = intHex(this.color);
@@ -233,7 +233,9 @@ class PortalParticle {
                     return;
                     // corruption handling will grow from here.
                 } else {
-                    const newColor = subHex32(beamColor, portalColor);
+                    const newColor = machine.corrupted
+                        ? ((beamColor & 0xFFFFFF00) | Math.max(0, Math.round((beamColor & 0xFF) * 0.5)))
+                        : subHex32(beamColor, portalColor);
                     this.beam.color = stringHex(newColor);
                     this.color = newColor; 
                 }

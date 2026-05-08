@@ -75,9 +75,9 @@ export default class mixer extends MachineBase {
 
     _halveColor(color) {
         const v = intHex(color) >>> 0;
-        const r = ((v >>> 24) & 0xFF) >> 1;
-        const g = ((v >>> 16) & 0xFF) >> 1;
-        const b = ((v >>> 8) & 0xFF) >> 1;
+        const r = Math.round(((v >>> 24) & 0xFF) * 0.5) & 0xFF;
+        const g = Math.round(((v >>> 16) & 0xFF) * 0.5) & 0xFF;
+        const b = Math.round(((v >>> 8) & 0xFF) * 0.5) & 0xFF;
         const a = v & 0xFF;
         return (((r & 0xFF) << 24) | ((g & 0xFF) << 16) | ((b & 0xFF) << 8) | (a & 0xFF)) >>> 0;
     }

@@ -1,5 +1,6 @@
 import SidebarManager from "./SidebarManager.js";
 import GoalManager from "./GoalManager.js";
+import { customPrompt } from "../World/CustomPrompt.js";
 
 export default class LevelManager {
     constructor(assetManager, input, factoryManager, dataManager, particleManager) {
@@ -141,22 +142,42 @@ export default class LevelManager {
         // attach dev-mode editable handlers for header and description and funny
         const attachEditable = (selector, keyName) => {
             const el = document.querySelector(selector);
-            if (!el) return;
-            el.style.pointerEvents = 'auto';
-            el.addEventListener('click', (ev) => {
-                if (!this.devMode) return;
+            if (!el) {
+                console.warn(`attachEditable: Element not found: ${selector}`);
+                return;
+            }
+            console.log(`attachEditable: Found ${selector}, attaching listener`);
+            
+            // Don't clone - use capture phase to catch event early
+            el.addEventListener('mouseup', async (ev) => {
+                console.log(`mouseup fired on ${selector}`, ev);
+                if (!this.devMode) {
+                    console.log(`devMode is ${this.devMode}, skipping`);
+                    return;
+                }
                 ev.stopPropagation();
+                ev.preventDefault();
+                console.log(`Clicked ${selector}`);
                 const cur = this.currentLevelData || {};
                 const curVal = cur[keyName] ?? '';
-                const input = prompt(`Edit ${keyName}`, curVal);
+                const input = await customPrompt(`Edit ${keyName}`, curVal);
                 if (input === null) return;
                 cur[keyName] = input;
                 // update DOM immediately
-                if (selector === '#level-id') document.querySelector('#level-id').textContent = input;
-                if (selector === '#level-text') document.querySelector('#level-text').textContent = input;
+                if (selector === '#level-id') {
+                    const el = document.querySelector('#level-id');
+                    if (el) el.textContent = input;
+                }
+                if (selector === '#level-text') {
+                    const el = document.querySelector('#level-text');
+                    if (el) el.textContent = input;
+                }
                 if (selector === '#funny-text') {
-                    document.querySelector('#funny-text').textContent = input;
-                    this._originalFunnyText = input;
+                    const el = document.querySelector('#funny-text');
+                    if (el) {
+                        el.textContent = input;
+                        this._originalFunnyText = input;
+                    }
                 }
             });
         };
@@ -191,9 +212,9 @@ export default class LevelManager {
             console.debug('LevelManager: devMode ->', this.devMode);
         }, 'level-manager', 0);
         // F3: prompt to add a new goal when in dev mode
-        this.input.addBinding('keyboard', 'F5', 'press', () => {
+        this.input.addBinding('keyboard', 'F5', 'press', async () => {
             if (!this.devMode) return;
-            const input = prompt('Add goal (examples: dye,#RRGGBBAA,100 OR machine,conveyor,10 OR time,100)');
+            const input = await customPrompt('Add goal (examples: dye,#RRGGBBAA,100 OR machine,conveyor,10 OR time,100)');
             if (!input) return;
             const parts = input.split(',').map(p=>p.trim()).filter(p=>p!=='');
             if (!parts || parts.length === 0) return;
@@ -223,9 +244,9 @@ export default class LevelManager {
             if (this.goalManager && typeof this.goalManager.populate === 'function') this.goalManager.populate(goalsRef);
         }, 'level-manager', 0);
         // F5: prompt to add a new slot when in dev mode
-        this.input.addBinding('keyboard', 'F3', 'press', () => {
+        this.input.addBinding('keyboard', 'F3', 'press', async () => {
             if (!this.devMode) return;
-            const input = prompt('Add slot (examples: conveyor, 999 OR spawner, 999, [[#000000FF,999]])');
+            const input = await customPrompt('Add slot (examples: conveyor, 999 OR spawner, 999, [[#000000FF,999]])');
             if (!input) return;
             const added = this.sidebarManager?.addSlotFromSpec?.(input, this.currentLevelData);
             if (!added) console.debug('LevelManager: could not add slot from spec');
@@ -347,10 +368,10 @@ export default class LevelManager {
                 console.debug('LevelManager: copied placed JSON to clipboard');
             }).catch(err => {
                 console.warn('LevelManager: clipboard write failed', err);
-                prompt('Level JSON (copy manually):', json);
+                customPrompt('Level JSON (copy manually):', json);
             });
         } else {
-            prompt('Level JSON (copy manually):', json);
+            customPrompt('Level JSON (copy manually):', json);
         }
     }
 }

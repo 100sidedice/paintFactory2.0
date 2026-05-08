@@ -20,6 +20,7 @@ class Program {
 
         this.selectedRot = 0;
         this.input = new Input();
+        window._inputManager = this.input; // Expose for CustomPrompt
         
         // Debug mode for step-based updates
         this.debugMode = false;
