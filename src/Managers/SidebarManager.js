@@ -1205,6 +1205,18 @@ export default class SidebarManager {
     }
 
     setupInputBindings() {
+        // Close spawner panel when clicking outside of it
+        this.input.addBinding('mouse', 'left', 'press', () => {
+            if (!this.spawnerPanelOpen) return;
+            const pos = this.input.getPos();
+            const target = document.elementFromPoint(pos.x, pos.y);
+            const inPanel = target?.closest('.spawner-panel') || target?.closest('.spawner-panel-toggle');
+            if (!inPanel) {
+                this.spawnerPanelOpen = false;
+                this._syncSpawnerPanelVisibility();
+            }
+        }, [], 0);
+
         for (let i = 1; i <= 7; i++) {
             const code = `Digit${i}`;
             this.input.addBinding('keyboard', code, 'press', () => {
@@ -1583,6 +1595,32 @@ export default class SidebarManager {
                 if (typeof hoveredMachine.rotate === 'function') hoveredMachine.rotate(rotateAmount);
                 return;
             }
+            
+            // Check if hovering over a slot instead of selected slot
+            const hoveredSlot = document.elementFromPoint(gridPos.x, gridPos.y)?.closest('div.machine');
+            if (hoveredSlot) {
+                let slotIndex = -1;
+                for (let i = 0; i < this.slots.length; i++) {
+                    if (this.slots[i] === hoveredSlot) {
+                        slotIndex = i;
+                        break;
+                    }
+                }
+                if (slotIndex >= 0) {
+                    const slot = this.slots[slotIndex];
+                    // animate rotate
+                    let anim = parseInt(slot.dataset.animRot ?? '0', 10) || 0;
+                    anim = anim + rotateAmount;
+                    slot.dataset.animRot = String(anim);
+                    const icon = slot.querySelector('canvas.machine-icon');
+                    if (icon) icon.style.setProperty('--rot-anim', `${anim}deg`);
+                    const cur = parseInt(slot.dataset.rot ?? '0', 10) || 0;
+                    const next = (cur + rotateAmount + ROTATION_CYCLE) % ROTATION_CYCLE;
+                    slot.dataset.rot = String(next);
+                    return;
+                }
+            }
+            
             // otherwise, rotate the currently selected slot (like wheel on slot icon)
             const sel = this.slots[this.selectedIndex];
             if (!sel) return;

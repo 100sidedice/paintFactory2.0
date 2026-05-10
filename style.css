@@ -73,7 +73,8 @@ canvas {
     border: 0.3dvh solid #00000066;
     pointer-events: none;
     opacity: 0;
-    transform: translateX(-1.2dvh);
+    transform-origin: left center;
+    transform: scale(0,1);
     transition: opacity 0.16s ease, transform 0.16s ease;
     z-index: 12;
 }
@@ -81,7 +82,7 @@ canvas {
 .spawner-panel.open {
     pointer-events: auto;
     opacity: 1;
-    transform: translateX(0);
+    transform: scale(1,1);
 }
 
 .spawner-panel-body {
