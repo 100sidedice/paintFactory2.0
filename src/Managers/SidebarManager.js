@@ -1308,8 +1308,9 @@ export default class SidebarManager {
                         const machine = this.factoryManager.getMachine(x, y);
                         if (!machine) continue;
                         const machineType = machine.name || machine.data?.type;
-                        // Skip machines not available in level/sidebar
-                        if (!this.factoryManager.hasMachineInSlot(machineType)) continue;
+                        // Skip machines not available in level/sidebar, unless they're editable
+                        const isEditable = machine.data?.editable === true;
+                        if (!this.factoryManager.hasMachineInSlot(machineType) && !isEditable) continue;
                         const currentRot = machine.data?.rot || 0;
                         const newRot = (currentRot + ROTATION_STEP) % ROTATION_CYCLE;
                         this.factoryManager.setMachineProperty(x, y, 'rot', newRot);
@@ -1574,7 +1575,8 @@ export default class SidebarManager {
             if (grid && gridX >= 0 && gridY >= 0 && gridX < grid.length && gridY < (grid[0]?.length || 0)) hoveredMachine = grid[gridX][gridY];
             if (hoveredMachine) {
                 const machineType = hoveredMachine.name || hoveredMachine.data?.type;
-                if (!this.hasMachine(machineType)) return;
+                const isEditable = hoveredMachine.data?.editable === true;
+                if (!this.hasMachine(machineType) && !isEditable) return;
                 const cur = parseInt(this.factoryManager.getMachineProperty(gridX, gridY, 'rot') ?? 0, 10) || 0;
                 const newRot = ((cur + rotateAmount) % ROTATION_CYCLE + ROTATION_CYCLE) % ROTATION_CYCLE;
                 this.factoryManager.setMachineProperty(gridX, gridY, 'rot', newRot);

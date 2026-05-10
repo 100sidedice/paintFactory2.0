@@ -36,3 +36,23 @@
 .goal-text { color: #FFFFFF; font-size: 14px; }
 .goal-have { font-weight: 700; }
 .goal-need { opacity: 0.9; }
+
+/* Goal RGB tooltip */
+.goal-tooltip {
+  position: absolute;
+  background: rgb(29, 29, 29);
+  color: #FFFFFFFF;
+  padding: 6px 10px;
+  border-radius: 0px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+  border: 1px solid #00000066;
+  display: none;
+  right: 110%;
+  top: 50%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  transform: translateY(-50%);
+}

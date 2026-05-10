@@ -1,6 +1,6 @@
 {
     "Header": "Market Madness",
-    "Description": "Sell 100000 of each secondary color.",
+    "Description": "Sell 10000 of each secondary color.",
     "funny": "copy & paste is your friend.",
     "Hints": [
         "Click a machine in the sidebar to select it, then click on the grid to place it",
@@ -9,10 +9,10 @@
     ],
     "Goal": {
         "Time": 1000,
-        "#FF00FFFF": 100000,
-        "#FFFF00FF": 100000,
-        "#00FFFFFF": 100000,
-        "#FFFFFFFF": 100000
+        "#FF00FFFF": 10000,
+        "#FFFF00FF": 10000,
+        "#00FFFFFF": 10000,
+        "#FFFFFFFF": 10000
     },
     "Machines": [
         ["delete",1],

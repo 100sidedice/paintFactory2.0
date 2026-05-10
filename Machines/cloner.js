@@ -1,6 +1,8 @@
 import MachineBase from './Machine.js';
 import { intHex } from '../src/Helpers/colorHelpers.js';
 import { getColorizedTile } from './components/masking.js';
+import { isItemColliding } from './components/collision.js';
+import { applyMovement } from './components/movement.js';
 
 const DEFAULT_CLONER_COLOR = 0x000000FF;
 
@@ -40,6 +42,21 @@ export default class cloner extends MachineBase {
         if (this._propagateAcc >= this._propagateInterval) {
             this._propagateAcc -= this._propagateInterval;
             this._propagateColorToNeighbors();
+        }
+    }
+
+    onItemCollision(item, size) {
+        // Act as a multi-way conveyor: apply movement in the direction the item is traveling
+        const collision = this.data.collision;
+        const colliding = isItemColliding(this.data.x ?? 0, this.data.y ?? 0, item, size, collision, this.data.rot);
+        if (colliding) {
+            const speed = this.manager.DataManager.config.defaultSaveData.upgrades.conveyor.speed;
+            // Try to detect direction of travel and apply movement in that direction
+            // For multi-way support, apply movement in 4 directions: up, right, down, left (0, 90, 180, 270)
+            applyMovement(true, item, speed, 0);   // up
+            applyMovement(true, item, speed, 90);  // right
+            applyMovement(true, item, speed, 180); // down
+            applyMovement(true, item, speed, 270); // left
         }
     }
 
@@ -149,12 +166,19 @@ export default class cloner extends MachineBase {
                 }
             }
             if (machine.name.split('-')[0] === 'spawner') {
-                machine.color = this.color;
-                machine.lastColorChange = performance.now();
+                this._updateSpawnerVariant(machine);
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
                     machine.nextSpread = 100 + Math.random() * 200;
+                }
+            }
+            if (machine.name === 'glass') {
+                if (this.corrupted) {
+                    machine.corrupted = true;
+                    machine.spreadTime = 0;
+                    machine.nextSpread = 100 + Math.random() * 200;
+                    machine.data.corrupted = true;
                 }
             }
         }
@@ -372,6 +396,96 @@ export default class cloner extends MachineBase {
             }
             ctx.restore();
         }
+    }
+
+    _updateSpawnerVariant(spawner) {
+        // Check if base spawner is editable (has delete slot and base spawner type in slots)
+        const isEditable = this.manager?.hasActionSlot?.('delete') && 
+                          this.manager?.hasMachineInSlot?.('spawner');
+        
+        if (!isEditable) return; // Don't swap if spawner isn't editable
+        
+        // Get all neighboring cloners and mix their colors
+        const neighbors = this.manager?.getNeighborsFor?.(spawner);
+        if (!neighbors) return;
+
+        const cloners = [];
+        const colors = [];
+        
+        for (const [dir, entry] of Object.entries(neighbors)) {
+            const machine = entry?.machine;
+            if (machine && machine.name === 'cloner') {
+                // Skip unpowered (default color) cloners
+                if (machine.color === DEFAULT_CLONER_COLOR) continue;
+                cloners.push(machine);
+                colors.push(intHex(machine.color));
+            }
+        }
+
+        if (cloners.length === 0) return; // no cloners nearby
+
+        // Mix all cloner colors together
+        const mixedColor = this._mixColors(...colors);
+        spawner.color = mixedColor;
+        if (spawner.data) {
+            spawner.data.color = mixedColor;
+            spawner.data.editable = true; // Mark as editable so variant can be rotated/deleted
+        }
+
+        // Determine spawner variant based on number of cloners
+        const currentName = spawner.name;
+        let newVariantType = 'spawner'; // 1 cloner = basic spawner
+        
+        if (cloners.length === 2) {
+            newVariantType = 'spawner-twoway';
+        } else if (cloners.length === 3) {
+            newVariantType = 'spawner-threeway';
+        } else if (cloners.length >= 4) {
+            newVariantType = 'spawner-fourway';
+        }
+
+        // If variant changed, replace the machine but keep it as a "spawner" for slot checking
+        if (currentName !== newVariantType) {
+            const x = spawner.data.x;
+            const y = spawner.data.y;
+            const rot = spawner.data.rot || 0;
+            const color = spawner.color;
+            
+            // Remove and re-add with new variant type, preserving editable flag
+            const wasEditable = spawner.data?.editable === true;
+            this.manager.removeMachine(x, y);
+            const newSpawner = this.manager.addMachine(newVariantType, x, y, rot);
+            if (newSpawner) {
+                newSpawner.color = color;
+                if (newSpawner.data) {
+                    newSpawner.data.color = color;
+                    newSpawner.data.editable = wasEditable || true; // Keep or set editable flag
+                }
+            }
+        }
+    }
+
+    _mixColors(...colors) {
+        if (colors.length === 0) return 0xFFFFFFFF;
+        if (colors.length === 1) return colors[0];
+
+        // Average all color channels
+        let sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+        for (const color of colors) {
+            const c = intHex(color) >>> 0;
+            sumR += (c >>> 24) & 0xFF;
+            sumG += (c >>> 16) & 0xFF;
+            sumB += (c >>> 8) & 0xFF;
+            sumA += c & 0xFF;
+        }
+
+        const count = colors.length;
+        const avgR = Math.round(sumR / count);
+        const avgG = Math.round(sumG / count);
+        const avgB = Math.round(sumB / count);
+        const avgA = Math.round(sumA / count);
+
+        return (((avgR & 0xFF) << 24) | ((avgG & 0xFF) << 16) | ((avgB & 0xFF) << 8) | (avgA & 0xFF)) >>> 0;
     }
 }
 

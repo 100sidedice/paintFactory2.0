@@ -215,6 +215,57 @@ class PortalParticle {
             if(col.cell === this.portalId) continue;
             // use axis annotated by getcollidedCells ("x", "y", "center", or "corner")
             const axis = col.axis || 'center';
+            // Glass handling: when entering a glass cell, remember that we're inside and the axis we used to enter.
+            // When exiting, if exiting on the same axis, allow exit; otherwise bounce off (reflect the velocity component perpendicular to the wall).
+            if (col.type === 'glass'){
+                if (col.entering === 'true'){
+                    // If glass is corrupted, set beam alpha to 0
+                    const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
+                    if (Number.isFinite(cellX) && Number.isFinite(cellY)) {
+                        const machine = this.manager.getMachine(cellX, cellY);
+                        if (machine && machine.corrupted) {
+                            const beamColor = intHex(this.color);
+                            const newColor = beamColor & 0xFFFFFF00; // zero out alpha
+                            this.color = newColor;
+                            this.beam.color = stringHex(newColor);
+                        }
+                    }
+                    this.inGlass = true;
+                    if (axis === 'x' || axis === 'y') this.glassAxis = axis;
+                } else if (col.entering === 'false'){
+                    if (this.inGlass) {
+                        // exit along same axis: leave glass normally
+                        if (axis === this.glassAxis) {
+                            this.inGlass = false;
+                            this.glassAxis = null;
+                        } else if (axis === 'x' || axis === 'y') {
+                            // bounce: reflect the velocity component corresponding to the axis we are crossing
+                            if (axis === 'x') this.vx = -this.vx;
+                            if (axis === 'y') this.vy = -this.vy;
+                            // revert to previous position to avoid passing through the wall this frame
+                            this.x = this.lastX;
+                            this.y = this.lastY;
+                            break; // stop processing further collisions this tick after bounce
+                        }
+                    }
+                }
+            }
+            // 0-alpha beams destroy machines (except glass and portals)
+            if ((col.entering === 'true' || col.entering === 'center') && col.type !== 'glass' && col.type !== 'portal' && col.type !== 'portal-in') {
+                const beamColor = intHex(this.color);
+                const hasNoAlpha = (beamColor & 0xFF) === 0;
+                if (hasNoAlpha) {
+                    const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
+                    if (Number.isFinite(cellX) && Number.isFinite(cellY)) {
+                        const machine = this.manager.getMachine(cellX, cellY);
+                        if (machine) {
+                            this.manager.forceRemoveMachine(cellX, cellY);
+                        }
+                    }
+                    this.despawn();
+                    break;
+                }
+            }
             if (col.entering === 'true' && col.type === 'portal-in'){
                 const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
                 // portal vortex: corrupted portals halve beam alpha; otherwise they subtract their color from the beam
@@ -259,6 +310,7 @@ class PortalParticle {
                     }
                 }
             }
+            
 
             if ((col.entering === 'true' || col.entering === 'center') && col.type === 'cloner') {
                 const [cellX, cellY] = col.cell.split(',').map(v => parseInt(v, 10));
@@ -268,36 +320,17 @@ class PortalParticle {
                 }
             }
             
-            // Glass handling: when entering a glass cell, remember that we're inside and the axis we used to enter.
-            // When exiting, if exiting on the same axis, allow exit; otherwise bounce off (reflect the velocity component perpendicular to the wall).
-            if (col.type === 'glass'){
-                if (col.entering === 'true'){
-                    this.inGlass = true;
-                    if (axis === 'x' || axis === 'y') this.glassAxis = axis;
-                } else if (col.entering === 'false'){
-                    if (this.inGlass) {
-                        // exit along same axis: leave glass normally
-                        if (axis === this.glassAxis) {
-                            this.inGlass = false;
-                            this.glassAxis = null;
-                        } else if (axis === 'x' || axis === 'y') {
-                            // bounce: reflect the velocity component corresponding to the axis we are crossing
-                            if (axis === 'x') this.vx = -this.vx;
-                            if (axis === 'y') this.vy = -this.vy;
-                            // revert to previous position to avoid passing through the wall this frame
-                            this.x = this.lastX;
-                            this.y = this.lastY;
-                            break; // stop processing further collisions this tick after bounce
-                        }
-                    }
-                }
-            }
+            
+            
             // now, if we would enter a nothing machine, destroy the particle & spawn particle burst at that location.
             if (col.entering === 'true' && col.type === 'nothing'){
                 this.manager.ParticleManager.spawnAt(col.px * winSize, col.py * winSize, {colors: [0xFF0000FF], speed: 80, life: 300, count: 6});
                 this.despawn();
                 break;
             }
+            
+            
+            
             if (col.entering === 'true' && col.type === 'seller'){
                 this.manager.ParticleManager.spawnAt(col.px * winSize, col.py * winSize, {colors: [0xFFFF00FF], speed: 80, life: 300, count: 6});
                 const color = this.color;
@@ -594,7 +627,24 @@ class BeamParticle {
     }
     draw(ctx){
         if (!this.recordedPositions.length && !this.targetParticle) return; // no history left, so nothing to draw.
-        ctx.strokeStyle = stringHex(this.color);
+        
+        // Check if this is a 0-alpha beam
+        const beamColor = intHex(this.color);
+        const hasNoAlpha = (beamColor & 0xFF) === 0;
+        
+        // Add rapid flicker for 0-alpha beams
+        if (hasNoAlpha) {
+            const flickerPeriod = 8; // ms between flicker toggles
+            const visible = (Math.floor(this.elapsedTime / flickerPeriod) % 2) === 0;
+            if (!visible) return; // don't draw on hidden frames
+            
+            // Render 0-alpha beams with half-alpha for visibility
+            const halfAlphaColor = (beamColor & 0xFFFFFF00) | 0x80;
+            ctx.strokeStyle = stringHex(0x11111111);
+        } else {
+            ctx.strokeStyle = stringHex(this.color);
+        }
+        
         const size = window.innerHeight/9;
         // draw a line between recorded positions. If no recorded positions, draw a dot at the target particle.
         if (this.recordedPositions.length > 1) {

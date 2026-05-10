@@ -583,7 +583,14 @@ export default class FactoryManager {
             const machine = this.getMachine(x, y);
             if (!machine) continue;
             const machineType = machine.name || machine.data?.type;
-            if (!this.hasActionSlot('delete-rotate') || !this.hasMachineInSlot(machineType)) continue;
+            
+            // Check if machine can be rotated: either has slot, or has editable flag
+            const isEditable = machine.data?.editable === true;
+            const hasSlot = this.hasActionSlot('delete-rotate') && this.hasMachineInSlot(machineType);
+            
+            // Allow rotation if: (has slot) OR (is editable and has action slot)
+            if (!hasSlot && (!isEditable || !this.hasActionSlot('delete-rotate'))) continue;
+            
             const cur = parseInt(machine.data?.rot ?? 0, 10) || 0;
             const newRot = ((cur + rotateAmount) % 360 + 360) % 360;
             this.setMachineProperty(x, y, 'rot', newRot);
@@ -624,7 +631,13 @@ export default class FactoryManager {
         const removed = this.grid[x] && this.grid[x][y];
         if (!removed) return null;
         const type = removed.name || (removed.data && removed.data.type) || null;
-        if (!this.hasActionSlot('delete') || !this.hasMachineInSlot(type)) return null;
+        
+        // Check if machine is editable either by having the type in slots, or by having the editable flag set
+        const hasSlot = this.hasActionSlot('delete') && this.hasMachineInSlot(type);
+        const isEditable = removed.data?.editable === true;
+        
+        if (!hasSlot && !isEditable) return null;
+        if (hasSlot && !this.hasActionSlot('delete')) return null;
 
         this.grid[x][y] = null;
         this._portalMachineCacheDirty = true;
@@ -632,6 +645,19 @@ export default class FactoryManager {
         const rot = (removed.data && removed.data.rot) || 0;
         return { type, rot };
     }
+    
+    forceRemoveMachine(x,y) {
+        const removed = this.grid[x] && this.grid[x][y];
+        if (!removed) return null;
+        const type = removed.name || (removed.data && removed.data.type) || null;
+        
+        this.grid[x][y] = null;
+        this._portalMachineCacheDirty = true;
+        this.generateQueue();
+        const rot = (removed.data && removed.data.rot) || 0;
+        return { type, rot };
+    }
+    
     resetFactory(type="items"){
         switch(type) {
             case "items":

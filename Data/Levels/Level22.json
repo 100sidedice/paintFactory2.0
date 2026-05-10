@@ -1,38 +1,44 @@
 {
-    "Header": "The Beacon",
-    "Description": "Sell 100 of each secondary color.",
-    "funny": "The beacon asorbs light beams to empower neighboring machines.",
+    "Header": "Powered spawners",
+    "Description": "Generate 100 of each color",
+    "funny": "You get more spawner, out of each spawner.",
     "Hints": [
         "Click a machine in the sidebar to select it, then click on the grid to place it",
         "Right click a machine in the sidebar to see it's description",
         "Make a path from the spawner to the goal using conveyor belts"
     ],
     "Goal": {
-        "Time": 300,
+        "#0000FFFF": 100,
+        "#00FF00FF": 100,
+        "#FF0000FF": 100,
         "#FFFF00FF": 100,
         "#00FFFFFF": 100,
-        "#FF00FFFF": 100
+        "#FF00FFFF": 100,
+        "#FFFFFFFF": 100,
+        "time": 300
     },
     "Machines": [
         ["delete",1],
         ["delete-rotate",1],
         ["delete-select",1],
-        ["mixer-left",99],
-        ["mixer-right",99],
+        ["spawner",1],
+        ["mixer",2],
+        ["mixer-left",2],
+        ["mixer-right",1],
         ["conveyor",99],
         ["conveyor-left",99],
         ["conveyor-right",99],
         ["conveyor-merge",99],
         ["conveyor-mergeleft",99],
         ["conveyor-mergeright",99],
-        ["portal-in",99],
-        ["portal",99],
-        ["cloner",99],
-        ["spawner",99]
+        ["conveyor-4way",99],
+        ["seller",1],
+        ["portal",1],
+        ["portal-in",1],
+        ["cloner",4]
     ],
     "spawner-items": [
-        {"color":4278190335,"count":99},
-        {"color":16711935,"count":99}
+        {"color":4294967295,"count":1}
     ],
     "Placed": {
         "1.0": "nothing",
@@ -47,102 +53,32 @@
         "2.0": "nothing",
         "2.1": "nothing",
         "2.2": "nothing",
-        "2.3": {
-            "type": "spawner #FFFFFFFF",
-            "rot": 90
-        },
         "2.4": "nothing",
-        "2.5": "nothing",
-        "2.6": {
-            "type": "spawner #FFFFFFFF",
-            "rot": 90
-        },
-        "2.7": "nothing",
         "2.8": "nothing",
         "3.0": "nothing",
-        "3.1": "nothing",
-        "3.2": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
-        "3.3": {
-            "type": "mixer",
-            "rot": 90
-        },
-        "3.4": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
-        "3.5": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
-        "3.6": {
-            "type": "mixer",
-            "rot": 90
-        },
-        "3.7": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
         "3.8": "nothing",
         "4.0": "nothing",
-        "4.1": "nothing",
-        "4.2": {
-            "type": "conveyor-4way",
-            "rot": 180
-        },
-        "4.3": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
-        "4.4": "conveyor-4way",
-        "4.5": {
-            "type": "conveyor-4way",
-            "rot": 180
-        },
-        "4.6": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
-        "4.7": "conveyor-4way",
         "4.8": "nothing",
         "5.0": "nothing",
         "5.1": "nothing",
-        "5.2": "nothing",
-        "5.3": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
-        "5.4": "nothing",
-        "5.5": "nothing",
-        "5.6": {
-            "type": "conveyor-4way",
-            "rot": 90
-        },
-        "5.7": "nothing",
         "5.8": "nothing",
         "6.0": "nothing",
-        "6.1": "nothing",
         "6.8": "nothing",
         "7.0": "nothing",
-        "7.1": "nothing",
         "7.8": "nothing",
         "8.0": "nothing",
         "8.1": "nothing",
         "8.8": "nothing",
         "9.0": "nothing",
-        "9.1": "nothing",
         "9.8": "nothing",
         "10.0": "nothing",
-        "10.1": "nothing",
         "10.8": "nothing",
         "11.0": "nothing",
-        "11.1": "nothing",
         "11.8": "nothing",
         "12.0": "nothing",
         "12.1": "nothing",
-        "12.2": "seller",
+        "12.4": "nothing",
+        "12.7": "nothing",
         "12.8": "nothing",
         "13.0": "nothing",
         "13.1": "nothing",

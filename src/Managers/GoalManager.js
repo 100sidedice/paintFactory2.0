@@ -313,6 +313,20 @@ export default class GoalManager {
 
             wrap.appendChild(sw);
             wrap.appendChild(text);
+            
+            // Add tooltip showing machine name
+            const tooltip = document.createElement('div');
+            tooltip.className = 'goal-tooltip';
+            tooltip.textContent = type;
+            wrap.appendChild(tooltip);
+            
+            wrap.style.position = 'relative';
+            wrap.addEventListener('mouseenter', () => {
+                tooltip.style.display = 'block';
+            });
+            wrap.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
 
             return {
                 kind: 'machine',
@@ -335,6 +349,20 @@ export default class GoalManager {
 
             wrap.appendChild(sw);
             wrap.appendChild(text);
+            
+            // Add tooltip showing "time"
+            const tooltip = document.createElement('div');
+            tooltip.className = 'goal-tooltip';
+            tooltip.textContent = 'time';
+            wrap.appendChild(tooltip);
+            
+            wrap.style.position = 'relative';
+            wrap.addEventListener('mouseenter', () => {
+                tooltip.style.display = 'block';
+            });
+            wrap.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
 
             const start = performance.now();
 
@@ -394,6 +422,65 @@ export default class GoalManager {
             wrap.appendChild(sw);
             wrap.appendChild(text);
 
+            // Add tooltip for RGB percentages on hover
+            const r = (colorInt >> 24) & 0xFF;
+            const g = (colorInt >> 16) & 0xFF;
+            const b = (colorInt >> 8) & 0xFF;
+            const a = colorInt & 0xFF;
+            // Round to nearest 0.5 (1/8th precision)
+            const rPct = Math.round(r / 255 * 100 * 2) / 2;
+            const gPct = Math.round(g / 255 * 100 * 2) / 2;
+            const bPct = Math.round(b / 255 * 100 * 2) / 2;
+            const aPct = Math.round(a / 255 * 100 * 2) / 2;
+            
+            // Format percentages, showing .5 when needed
+            const formatPct = (val) => val % 1 === 0 ? Math.floor(val) : val;
+            
+            const tooltip = document.createElement('div');
+            tooltip.className = 'goal-tooltip';
+            tooltip.textContent = '';
+            
+            // Check if grayscale (all RGB channels equal) and not fully transparent
+            const isGrayscale = r === g && g === b && a === 0xFF;
+            
+            if (isGrayscale) {
+                // For grayscale, show single value with gray color
+                const graySpan = document.createElement('span');
+                graySpan.style.color = '#CCCCCC';
+                graySpan.textContent = `${formatPct(rPct)}%`;
+                tooltip.appendChild(graySpan);
+            } else {
+                // Create colored channel spans
+                const createChannelSpan = (value, color) => {
+                    const span = document.createElement('span');
+                    span.style.color = color;
+                    span.textContent = `${value}%`;
+                    return span;
+                };
+                
+                tooltip.appendChild(createChannelSpan(formatPct(rPct), '#FF0000'));
+                tooltip.appendChild(document.createTextNode(' '));
+                tooltip.appendChild(createChannelSpan(formatPct(gPct), '#00FF00'));
+                tooltip.appendChild(document.createTextNode(' '));
+                tooltip.appendChild(createChannelSpan(formatPct(bPct), '#0000FF'));
+                
+                // Only show alpha if it's not fully opaque (FF)
+                if (a !== 0xFF) {
+                    tooltip.appendChild(document.createTextNode(' '));
+                    tooltip.appendChild(createChannelSpan(formatPct(aPct), '#AAAAAA'));
+                }
+            }
+            
+            wrap.appendChild(tooltip);
+            
+            wrap.style.position = 'relative';
+            wrap.addEventListener('mouseenter', () => {
+                tooltip.style.display = 'block';
+            });
+            wrap.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
+            
             return {
                 kind: 'color',
                 key: opts.key,
@@ -753,12 +840,42 @@ export default class GoalManager {
     }
 
     _updateGoalState(g) {
-        const met = (g.kind === 'time') ? true : ((g.have || 0) >= (g.need || 0));
+        let met;
+        if (g.kind === 'time') {
+            met = true;
+        } else {
+            const have = g.have || 0;
+            const need = g.need || 0;
+            // If goal is negative, need to be below the goal. Otherwise, need to meet or exceed.
+            if (need < 0) {
+                met = have <= need;
+            } else {
+                met = have >= need;
+            }
+        }
+        
         const textEl = g.el.querySelector('.goal-text');
-        if (textEl) textEl.style.color = met ? '#00FF00' : '#FFFFFF';
+        if (textEl) {
+            if (met) {
+                textEl.style.color = '#00FF00';
+            } else {
+                // For negative goals that are not met, show red (too many items)
+                // For positive goals that are not met, show white (need more items)
+                if (g.need < 0 && (g.have || 0) > g.need) {
+                    textEl.style.color = '#FF0000';
+                } else {
+                    textEl.style.color = '#FFFFFF';
+                }
+            }
+        }
+        
         // compute all non-time goals met
         const relevantGoals = this.goals.filter(x => x.kind !== 'time');
-        const allMet = relevantGoals.length > 0 && relevantGoals.every(x => (x.have || 0) >= (x.need || 0));
+        const allMet = relevantGoals.length > 0 && relevantGoals.every(x => {
+            const have = x.have || 0;
+            const need = x.need || 0;
+            return (need < 0) ? (have <= need) : (have >= need);
+        });
         if (allMet && !this._timeExpired) this._onAllGoalsMet();
     }
 

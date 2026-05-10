@@ -91,7 +91,10 @@
             "level24": {"name": "level24", "type": "json"},
             "level25": {"name": "level25", "type": "json"},
             "level26": {"name": "level26", "type": "json"},
-            "level31": {"name": "level31", "type": "json"}
+            "level27": {"name": "level27", "type": "json"},
+            "level28": {"name": "level28", "type": "json"},
+            "level29": {"name": "level29", "type": "json"},
+            "level30": {"name": "level30", "type": "json"}
         }
     }
 }

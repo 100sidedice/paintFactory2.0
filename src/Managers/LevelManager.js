@@ -123,6 +123,7 @@ export default class LevelManager {
         const desc = levelData.Description ?? 'No description provided for this level.';
         const head = levelData.Header ?? 'No header provided for this level.';
         const funny = levelData.funny ?? '';
+        const typewriterSpeed = levelData.typewriterSpeed ?? 30; // ms per character (lower = faster, higher = slower)
         this._originalFunnyText = funny;
         // clear all three's text before typing or setting them directly
         document.querySelector('#level-id').textContent = '';
@@ -133,9 +134,9 @@ export default class LevelManager {
             document.querySelector('#level-text').textContent = desc;
             document.querySelector('#funny-text').textContent = funny;
         } else {
-            await this.typeText('#level-id', head, 100);
-            await this.typeText('#level-text', desc, 30);
-            await this.typeText('#funny-text', funny, 30);
+            await this.typeText('#level-id', head, typewriterSpeed > 30 ? typewriterSpeed * 3.33 : 100);
+            await this.typeText('#level-text', desc, typewriterSpeed);
+            await this.typeText('#funny-text', funny, typewriterSpeed);
         }
         // Ensure the funny-text element has click wiring after it's present in DOM
         this._ensureFunnyHandler();

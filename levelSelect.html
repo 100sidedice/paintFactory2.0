@@ -32,6 +32,15 @@
             completedLevels = [];
         }
 
+        // Check for autowin param for testing
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('autowin') === 'true') {
+            completedLevels = [...Array(30).keys()].map(i => i + 1);
+            try {
+                localStorage.setItem('pf_completedLevels', JSON.stringify(completedLevels));
+            } catch (e) {}
+        }
+
         // build main grid (30 levels = 6 rows × 5 cols)
         for (let r = 0; r < 6; r++) {
             const tr = document.createElement('tr');
@@ -88,48 +97,59 @@
             tbody.appendChild(tr);
         }
 
-        // ----------------------------
-        // Level 31 (new row)
-        // ----------------------------
-        const n = 31;
-
-        const tr31 = document.createElement('tr');
-        const td31 = document.createElement('td');
-        const btn31 = document.createElement('button');
-
-        btn31.textContent = n;
-
-        btn31.addEventListener('click', function () {
-            try { localStorage.setItem('pf_selectedLevel', 'level' + n); } catch (e) {}
-            window.location.href = 'game.html';
-        });
-
-        // completed check
-        try {
-            if (Array.isArray(completedLevels) && completedLevels.includes(n)) {
-                btn31.classList.add('completed');
+        // Check if all 30 levels are completed, if so apply rainbow colors to buttons
+        if (Array.isArray(completedLevels)) {
+            const allCompleted = completedLevels.length >= 30 && 
+                                 [...Array(30).keys()].every(i => completedLevels.includes(i + 1));
+            if (allCompleted) {
+                // Generate rainbow colors via HSL interpolation (red to purple)
+                const generateRainbowColor = (index, total) => {
+                    // Interpolate hue from 0 (red) to 280 (purple) across 30 levels
+                    const hue = Math.round((index / total) * 280);
+                    const saturation = 50; // Keep saturation moderate for muted tone
+                    const lightness = 35; // Darker to match sea green tone
+                    
+                    // Convert HSL to RGB
+                    const c = ((1 - Math.abs(2 * lightness / 100 - 1)) * saturation / 100);
+                    const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+                    const m = lightness / 100 - c / 2;
+                    
+                    let r, g, b;
+                    if (hue >= 0 && hue < 60) [r, g, b] = [c, x, 0];
+                    else if (hue >= 60 && hue < 120) [r, g, b] = [x, c, 0];
+                    else if (hue >= 120 && hue < 180) [r, g, b] = [0, c, x];
+                    else if (hue >= 180 && hue < 240) [r, g, b] = [0, x, c];
+                    else if (hue >= 240 && hue < 300) [r, g, b] = [x, 0, c];
+                    else [r, g, b] = [c, 0, x];
+                    
+                    const toHex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+                    const bgColor = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+                    
+                    // Border is darker (reduce lightness by ~15)
+                    const borderLight = Math.max(0, lightness - 15);
+                    const bc = ((1 - Math.abs(2 * borderLight / 100 - 1)) * saturation / 100);
+                    const bx = bc * (1 - Math.abs(((hue / 60) % 2) - 1));
+                    const bm = borderLight / 100 - bc / 2;
+                    let br, bg, bb;
+                    if (hue >= 0 && hue < 60) [br, bg, bb] = [bc, bx, 0];
+                    else if (hue >= 60 && hue < 120) [br, bg, bb] = [bx, bc, 0];
+                    else if (hue >= 120 && hue < 180) [br, bg, bb] = [0, bc, bx];
+                    else if (hue >= 180 && hue < 240) [br, bg, bb] = [0, bx, bc];
+                    else if (hue >= 240 && hue < 300) [br, bg, bb] = [bx, 0, bc];
+                    else [br, bg, bb] = [bc, 0, bx];
+                    
+                    const borderColor = `#${toHex(br + bm)}${toHex(bg + bm)}${toHex(bb + bm)}`;
+                    
+                    return { bgColor, borderColor };
+                };
+                
+                document.querySelectorAll('#levels button.completed').forEach((btn, index) => {
+                    const colors = generateRainbowColor(index, 30);
+                    btn.style.backgroundColor = colors.bgColor;
+                    btn.style.borderColor = colors.borderColor;
+                });
             }
-        } catch (e) {}
-
-        // existence check
-        (function (b, n) {
-            const url = `Data/Levels/Level${n}.json`;
-            fetch(url, { method: 'GET', cache: 'no-store' }).then(r => {
-                if (!r.ok) {
-                    b.classList.add('missing');
-                    b.disabled = true;
-                    b.setAttribute('aria-disabled', 'true');
-                }
-            }).catch(() => {
-                b.classList.add('missing');
-                b.disabled = true;
-                b.setAttribute('aria-disabled', 'true');
-            });
-        })(btn31, n);
-
-        td31.appendChild(btn31);
-        tr31.appendChild(td31);
-        tbody.appendChild(tr31);
+        }
     </script>
 
     <script src="Pages/levelSelect.js" type="module"></script>

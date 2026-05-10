@@ -458,10 +458,10 @@
         "name": "cloner",
         "description": "Clones an items color, letting neighboring tiles copy it. Say, filling mixer channels or portal h",
         "collision": {
-            "top":0,
-            "bottom":0,
-            "left":0,
-            "right":0
+            "top":2,
+            "bottom":2,
+            "left":2,
+            "right":2
         },
         "outputs": [],
         "texture": {"row": 18, "fps": 8, "frameCount": 6, "info":"Simple barrier that paricle trails refract through. Note, glass refracts  based on perpendicular angle of entry. Aka bounce of inner walls, but exits parallel to the edge entered on"}
