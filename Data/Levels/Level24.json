@@ -1,0 +1,47 @@
+{
+    "Header": "Market Madness",
+    "Description": "Sell 100000 of each secondary color.",
+    "funny": "copy & paste is your friend.",
+    "Hints": [
+        "Click a machine in the sidebar to select it, then click on the grid to place it",
+        "Right click a machine in the sidebar to see it's description",
+        "Make a path from the spawner to the goal using conveyor belts"
+    ],
+    "Goal": {
+        "Time": 1000,
+        "#FF00FFFF": 100000,
+        "#FFFF00FF": 100000,
+        "#00FFFFFF": 100000,
+        "#FFFFFFFF": 100000
+    },
+    "Machines": [
+        ["delete",1],
+        ["delete-rotate",1],
+        ["delete-select",1],
+        ["mixer",99],
+        ["mixer-left",99],
+        ["mixer-right",99],
+        ["conveyor",99],
+        ["conveyor-left",99],
+        ["conveyor-right",99],
+        ["conveyor-merge",99],
+        ["conveyor-mergeleft",99],
+        ["conveyor-mergeright",99],
+        ["conveyor-4way",99],
+        ["seller",99],
+        ["portal-in",99],
+        ["portal",99],
+        ["cloner",99]
+    ],
+    "spawner-items": [
+        {"color":4294967295,"count":99},
+        {"color":4278190335,"count":99},
+        {"color":16711935,"count":99},
+        {"color":65535,"count":99},
+        {"color":255,"count":99}
+    ],
+    "Placed": {
+        "8.4": "cloner #FFFFFFFF",
+        "9.5": "cloner #FFFFFFFF"
+    }
+}

@@ -322,11 +322,12 @@ export default class cloner extends MachineBase {
         const tw = 16;
         const th = 16;
         let cols = Math.max(1, Math.floor(img.width / tw));
-        if (this.manager.paused || this.spreadTime >= this.nextSpread) cols = 1;
+        const isDefaultColor = (intHex(this.color ?? DEFAULT_CLONER_COLOR) >>> 0) === (DEFAULT_CLONER_COLOR >>> 0);
+        if (this.manager.paused || this.spreadTime >= this.nextSpread || isDefaultColor) cols = 1;
         const tileIndex = row * cols;
         const frameCount = Math.max(1, this.data.texture?.frameCount ?? cols);
         const frameLimit = this.manager.paused ? 1 : Math.min(cols, frameCount);
-        const sx = Math.floor((performance.now() * (this.data.texture?.fps ?? 8)) / 1000 % frameLimit) * tw;
+        const sx = isDefaultColor ? 1 * tw : Math.floor((performance.now() * (this.data.texture?.fps ?? 8)) / 1000 % frameLimit) * tw;
         const sy = Math.floor(tileIndex / cols) * th;
 
         // Cancel masking on grayscale corruption flicker frames.

@@ -780,7 +780,8 @@ export default class SidebarManager {
             const frameLimit = Math.min(cols, frameCount);
             const remaining = this._getRemainingCount(type);
             const adjustedFps = remaining <= 0 ? fps * 0.7 : fps;
-            sx = Math.floor((nowMs * adjustedFps) / 1000) % frameLimit * TILE_SIZE;
+            // Freeze cloner to frame 1 instead of animating
+            sx = type === 'cloner' ? 1 * TILE_SIZE : Math.floor((nowMs * adjustedFps) / 1000) % frameLimit * TILE_SIZE;
         }
 
         if (this._isSpawnerType(type)) {

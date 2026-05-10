@@ -88,6 +88,7 @@
             "level21": {"name": "level21", "type": "json"},
             "level22": {"name": "level22", "type": "json"},
             "level23": {"name": "level23", "type": "json"},
+            "level24": {"name": "level24", "type": "json"},
             "level25": {"name": "level25", "type": "json"},
             "level26": {"name": "level26", "type": "json"},
             "level31": {"name": "level31", "type": "json"}

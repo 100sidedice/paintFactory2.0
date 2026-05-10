@@ -32,6 +32,15 @@ export default class seller extends MachineBase {
             this.spreadTime = 0;
             this.nextSpread = 1;
         }
+        if (!this.corrupted && this._isColorized()) {
+            const sold = this.color;
+            const gm = this.manager?.levelManager?.goalManager;
+            const salesPerFrame = Math.max(1, Math.floor(this.manager?.speedMultiplier ?? 1));
+            for (let i = 0; i < salesPerFrame; i++) {
+                if (gm && typeof gm.recordSale === 'function') gm.recordSale(sold);
+                this._spawnFreeItem(sold);
+            }
+        }
         super.update(delta);
     }
 
@@ -111,10 +120,7 @@ export default class seller extends MachineBase {
             }
 
             if (this._isColorized()) {
-                // Colorized seller acts like a free 4-way output: count the seller color immediately
-                // and emit a fresh item of that color outward.
-                this._adjustColorGoal(this.color, 1);
-                this._spawnFreeItem(this.color, item);
+                // Colorized sellers sell continuously from update(); collision only consumes the item.
                 this.manager.removeItem(item);
                 return;
             }
