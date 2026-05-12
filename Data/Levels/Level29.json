@@ -8,7 +8,7 @@
         "Make a path from the spawner to the goal using conveyor belts"
     ],
     "Goal": {
-        "time": 999,
+        "time": 99999,
         "#FF0000FF": 100,
         "#FF8000FF": 100,
         "#FFFF00FF": 100,
@@ -29,18 +29,19 @@
         ["mixer-left",99],
         ["mixer-right",99],
         ["conveyor",99],
-        ["conveyor-left",10],
-        ["conveyor-right",10],
-        ["conveyor-merge",10],
-        ["conveyor-mergeleft",10],
-        ["conveyor-mergeright",10],
+        ["conveyor-left",99],
+        ["conveyor-right",99],
+        ["conveyor-merge",99],
+        ["conveyor-mergeleft",99],
+        ["conveyor-mergeright",99],
+        ["conveyor-4way",99],
         ["seller",1],
         ["portal",99],
-        ["portal-in",999],
+        ["portal-in",99],
         ["cloner",99]
     ],
     "spawner-items": [
-        {"color":4294967295,"count":99}
+        {"color":"#FFFFFFFF","count":99}
     ],
     "Placed": {}
 }
