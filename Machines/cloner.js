@@ -1,5 +1,5 @@
 import MachineBase from './Machine.js';
-import { intHex } from '../src/Helpers/colorHelpers.js';
+import { intHex, addHex32 } from '../src/Helpers/colorHelpers.js';
 import { getColorizedTile } from './components/masking.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
@@ -113,7 +113,7 @@ export default class cloner extends MachineBase {
                 if (typeof machine._absorbPortalColor === 'function') {
                     machine._absorbPortalColor(this.color);
                 } else {
-                    machine.color = intHex(this.color);
+                    machine.color = addHex32(machine.color, this.color);
                     if (machine.data) machine.data.color = machine.color;
                 }
                 continue;
@@ -148,30 +148,38 @@ export default class cloner extends MachineBase {
                 continue;
             }
             if (machine.name.split('-')[0] === 'conveyor') {
-                machine.color = this.color;
+                // Additively mix cloner color into conveyor color (matches mixer behavior)
+                machine.color = addHex32(machine.color, this.color);
                 machine.lastColorChange = performance.now();
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
                     machine.nextSpread = 100 + Math.random() * 200;
                 }
+                continue;
             }
             if (machine.name.split('-')[0] === 'seller') {
-                machine.color = this.color;
+                // Additively mix cloner color into seller color (matches mixer behavior)
+                machine.color = addHex32(machine.color, this.color);
                 machine.lastColorChange = performance.now();
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
                     machine.nextSpread = 100 + Math.random() * 200;
                 }
+                continue;
             }
             if (machine.name.split('-')[0] === 'spawner') {
+                // Mix color into spawner and update its variant if editable
+                machine.color = addHex32(machine.color, this.color);
+                if (machine.data) machine.data.color = machine.color;
                 this._updateSpawnerVariant(machine);
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
                     machine.nextSpread = 100 + Math.random() * 200;
                 }
+                continue;
             }
             if (machine.name === 'glass') {
                 if (this.corrupted) {
@@ -180,6 +188,13 @@ export default class cloner extends MachineBase {
                     machine.nextSpread = 100 + Math.random() * 200;
                     machine.data.corrupted = true;
                 }
+                continue;
+            }
+
+            // Fallback: if machine exposes a color property, mix into it.
+            if (typeof machine.color !== 'undefined') {
+                machine.color = addHex32(machine.color, this.color);
+                if (machine.data) machine.data.color = machine.color;
             }
         }
     }
@@ -466,26 +481,10 @@ export default class cloner extends MachineBase {
     }
 
     _mixColors(...colors) {
-        if (colors.length === 0) return 0xFFFFFFFF;
-        if (colors.length === 1) return colors[0];
-
-        // Average all color channels
-        let sumR = 0, sumG = 0, sumB = 0, sumA = 0;
-        for (const color of colors) {
-            const c = intHex(color) >>> 0;
-            sumR += (c >>> 24) & 0xFF;
-            sumG += (c >>> 16) & 0xFF;
-            sumB += (c >>> 8) & 0xFF;
-            sumA += c & 0xFF;
-        }
-
-        const count = colors.length;
-        const avgR = Math.round(sumR / count);
-        const avgG = Math.round(sumG / count);
-        const avgB = Math.round(sumB / count);
-        const avgA = Math.round(sumA / count);
-
-        return (((avgR & 0xFF) << 24) | ((avgG & 0xFF) << 16) | ((avgB & 0xFF) << 8) | (avgA & 0xFF)) >>> 0;
+        // Use additive mixing (clamp per-channel) to match mixer behavior.
+        if (!colors || colors.length === 0) return 0xFFFFFFFF;
+        if (colors.length === 1) return colors[0] >>> 0;
+        return addHex32(...colors) >>> 0;
     }
 }
 
