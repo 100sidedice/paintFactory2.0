@@ -26,8 +26,16 @@ export default class spawner extends MachineBase {
             if (current >= max) return;
             const x = this.data.x ?? 0;
             const y = this.data.y ?? 0;
+            // small spawn offset (in pixels) so item doesn't sit exactly on adjacent machine collider
+            const spawnOffsetPixels = 2; // 2px forward from center
+            const rot = (this.data.rot || 0) * Math.PI / 180; // degrees -> radians
+            // default spawner faces up, so offset is (0, -spawnOffsetPixels)
+            const offsetX = 0;
+            const offsetY = -spawnOffsetPixels;
+            const rotX = offsetX * Math.cos(rot) - offsetY * Math.sin(rot);
+            const rotY = offsetX * Math.sin(rot) + offsetY * Math.cos(rot);
             const id = `item_${Math.random().toString(36).substr(2,9)}_${Date.now()}`;
-            const item = new Item(id, x + 0.5, y + 0.5, this.color, this.manager);
+            const item = new Item(id, x + 0.5 + rotX/16, y + 0.5 + rotY/16, this.color, this.manager);
             this.manager.items[id] = item;
         }
     }
