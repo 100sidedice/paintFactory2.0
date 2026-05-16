@@ -2,7 +2,7 @@ import MachineBase from './Machine.js';
 import Item from '../src/World/Item.js';
 import { isItemColliding } from './components/collision.js';
 import { applyMovement } from './components/movement.js';
-import { intHex } from '../src/Helpers/colorHelpers.js';
+import { intHex, colorsClose } from '../src/Helpers/colorHelpers.js';
 import { getColorizedTile } from './components/masking.js';
 
 const SELLER_LIGHT_MASK = 0xFFC800FF;
@@ -72,7 +72,7 @@ export default class seller extends MachineBase {
 
         for (const goal of gm.goals) {
             if (goal?.kind !== 'color') continue;
-            if (goal.colorInt !== colInt) continue;
+            if (!colorsClose(goal.colorInt, colInt)) continue;
             goal.have = (goal.have || 0) + delta;
             if (goal.haveEl) goal.haveEl.textContent = String(goal.have);
             if (typeof gm._updateGoalState === 'function') gm._updateGoalState(goal);

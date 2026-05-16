@@ -1,5 +1,5 @@
 import { composeMaskedFrame } from '../Helpers/imageHelpers.js';
-import { intHex, stringHex } from '../Helpers/colorHelpers.js';
+import { intHex, stringHex, colorsClose } from '../Helpers/colorHelpers.js';
 import { joinDots } from '../Helpers/pathHelpers.js';
 import { customPrompt } from '../World/CustomPrompt.js';
 
@@ -723,7 +723,7 @@ export default class GoalManager {
         if (colInt === null || colInt === undefined) return;
         // find matching goal (compare integer values)
         for (const g of this.goals) {
-            if (g.kind === 'color' && g.colorInt === colInt) {
+            if (g.kind === 'color' && colorsClose(g.colorInt, colInt)) {
                 g.have = (g.have || 0) + 1;
                 if (g.haveEl) g.haveEl.textContent = String(g.have);
                 this._updateGoalState(g);

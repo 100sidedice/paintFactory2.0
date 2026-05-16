@@ -94,3 +94,24 @@ export function offsetIntHex(color, pct = 0.12) {
     const nb = rndChannel(b);
     return (((nr & 0xFF) << 24) | ((ng & 0xFF) << 16) | ((nb & 0xFF) << 8) | (a & 0xFF)) >>> 0;
 }
+
+// Return true if two 32-bit colors (RRGGBBAA) are_close per-channel within
+// a tolerance. Default tolerance is 1/16th of max channel (≈16).
+export function colorsClose(cA, cB, tolerance = Math.ceil(255 / 16)) {
+    const a = intHex(cA) >>> 0;
+    const b = intHex(cB) >>> 0;
+    const ra = (a >>> 24) & 0xFF;
+    const ga = (a >>> 16) & 0xFF;
+    const ba = (a >>> 8) & 0xFF;
+    const aa = a & 0xFF;
+    const rb = (b >>> 24) & 0xFF;
+    const gb = (b >>> 16) & 0xFF;
+    const bb = (b >>> 8) & 0xFF;
+    const ab = b & 0xFF;
+    const tol = Math.max(0, Number(tolerance) || 0);
+    if (Math.abs(ra - rb) > tol) return false;
+    if (Math.abs(ga - gb) > tol) return false;
+    if (Math.abs(ba - bb) > tol) return false;
+    if (Math.abs(aa - ab) > tol) return false;
+    return true;
+}
