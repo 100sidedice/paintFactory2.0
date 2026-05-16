@@ -296,7 +296,7 @@
             "right":7
         },
         "collisionDown": {
-            "top":15,
+            "top":10,
             "bottom":0,
             "left":7,
             "right":7

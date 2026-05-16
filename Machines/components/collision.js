@@ -18,8 +18,11 @@ export function isItemColliding(mx, my, item, size, margins = {}, rot = 0) {
 
     const itemPx = item.x * size;
     const itemPy = item.y * size;
-
-    return (itemPx >= left && itemPx <= right && itemPy >= top && itemPy <= bottom);
+    // Use half-open intervals [left, right) and [top, bottom) so adjacent tiles
+    // don't both report collision when an item sits exactly on the border.
+    // Add a small epsilon to reduce flicker from floating-point imprecision.
+    const EPS = 1e-6;
+    return (itemPx + EPS >= left && itemPx - EPS < right && itemPy + EPS >= top && itemPy - EPS < bottom);
 }
 
 export default isItemColliding;
