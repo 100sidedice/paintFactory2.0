@@ -15,6 +15,8 @@ export default class mixer extends MachineBase {
         // base interval in ms (can be overridden by machine data)
         this.baseInterval = 1000;
         this.color = 0x1C1C1CFF;
+        // readable machine default color
+        this.DEFAULT_COLOR = 0x353535FF >>> 0;
         // time since last absorbed item (ms). when >3000, start depleting queues.
         this._timeSinceLastAbsorb = 0;
         // accumulator for per-second depletion ticks when idle

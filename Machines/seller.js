@@ -13,7 +13,9 @@ const SELLER_CORRUPT_DARK = 0x800080FF;
 export default class seller extends MachineBase {
     constructor(name, machineData, manager) {
         super(name, machineData, manager);
-        this.color = intHex(machineData?.color ?? SELLER_LIGHT_MASK);
+        this.color = SELLER_LIGHT_MASK;
+        // readable default color for external tools
+        this.DEFAULT_COLOR = SELLER_LIGHT_MASK;
         this.data.color = this.color;
         this.corrupted = !!machineData?.corrupted;
         this.data.corrupted = this.corrupted;

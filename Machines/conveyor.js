@@ -8,12 +8,12 @@ import { getColorizedTile } from './components/masking.js';
 export default class conveyor extends MachineBase {
     constructor(name, machineData, manager) {
         super(name, machineData, manager);
+
         // mask colors (defaults): lighter yellow, darker yellow (instance properties)
         this.LIGHT_MASK = 0xFFC800FF;
         this.DARK_MASK = 0xCBA000FF;
-
-        // conveyors can receive a propagated color (from cloners); default to light mask
-        this.color = intHex(this.LIGHT_MASK);
+        this.color = this.LIGHT_MASK
+        this.DEFAULT_COLOR = this.LIGHT_MASK
 
         // corruption / flicker state (mirror portal/cloner style)
         this.corrupted = false;

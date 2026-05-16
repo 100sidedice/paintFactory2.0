@@ -95,16 +95,29 @@ export default class cloner extends MachineBase {
     }
 
     _propagateColorToNeighbors() {
-        if(this.color === DEFAULT_CLONER_COLOR) return; // don't propagate if we don't have a color
         const neighbors = this.manager?.getNeighborsFor?.(this);
         if (!neighbors) return;
+
+        const isDefaultCloner = (intHex(this.color) >>> 0) === (DEFAULT_CLONER_COLOR >>> 0);
 
         for (const [dir, entry] of Object.entries(neighbors)) {
             const machine = entry?.machine;
             if (!machine) continue;
+            if (machine.color === undefined || machine.name === 'cloner') continue; // only propagate to machines that have a color property. Ignore other cloners.
+            if(isDefaultCloner) continue; // if this cloner is still at default color, don't propagate to avoid messing with other machines' colors on level start
+            const now = performance.now();
+            const staleThreshold = 50;
+            let newColor = addHex32(machine.color, this.color);
+            if(machine.lastColorChange === undefined) machine.lastColorChange = now;
+            if ((now - machine.lastColorChange) > staleThreshold) { // reset if too long.
+                newColor = this.color
+            }else if (machine.color === machine.DEFAULT_COLOR) { // reset if default.
+                newColor = this.color;
+            }
 
+
+            // Normal (non-default cloner) behavior: add/mix color into targets
             if (machine.name === 'portal' || machine.name === 'portal-in') {
-                // If cloner is corrupted, immediately mark touching portals as corrupted
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
@@ -112,15 +125,14 @@ export default class cloner extends MachineBase {
                 }
                 if (typeof machine._absorbPortalColor === 'function') {
                     machine._absorbPortalColor(this.color);
-                } else {
-                    machine.color = addHex32(machine.color, this.color);
+                } else if (machine.DEFAULT_COLOR !== undefined) {
+                    machine.color = newColor;
                     if (machine.data) machine.data.color = machine.color;
                 }
                 continue;
             }
 
             if (machine.name === 'mixer') {
-                // if cloner is corrupted, mark mixer corrupted so it subtracts and flickers
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
@@ -147,10 +159,12 @@ export default class cloner extends MachineBase {
                 this.fillMixerLeftChannels(machine, dir);
                 continue;
             }
+
             if (machine.name.split('-')[0] === 'conveyor') {
-                // Additively mix cloner color into conveyor color (matches mixer behavior)
-                machine.color = addHex32(machine.color, this.color);
-                machine.lastColorChange = performance.now();
+                if (machine.DEFAULT_COLOR !== undefined) {
+                    machine.color = newColor;
+                    machine.lastColorChange = performance.now();
+                }
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
@@ -158,10 +172,12 @@ export default class cloner extends MachineBase {
                 }
                 continue;
             }
+
             if (machine.name.split('-')[0] === 'seller') {
-                // Additively mix cloner color into seller color (matches mixer behavior)
-                machine.color = addHex32(machine.color, this.color);
-                machine.lastColorChange = performance.now();
+                if (machine.DEFAULT_COLOR !== undefined) {
+                    machine.color = newColor;
+                    machine.lastColorChange = performance.now();
+                }
                 if (this.corrupted) {
                     machine.corrupted = true;
                     machine.spreadTime = 0;
@@ -169,10 +185,12 @@ export default class cloner extends MachineBase {
                 }
                 continue;
             }
+
             if (machine.name.split('-')[0] === 'spawner') {
-                // Mix color into spawner and update its variant if editable
-                machine.color = addHex32(machine.color, this.color);
-                if (machine.data) machine.data.color = machine.color;
+                if (machine.DEFAULT_COLOR !== undefined) {
+                    machine.color = newColor;
+                    if (machine.data) machine.data.color = machine.color;
+                }
                 this._updateSpawnerVariant(machine);
                 if (this.corrupted) {
                     machine.corrupted = true;
@@ -181,6 +199,7 @@ export default class cloner extends MachineBase {
                 }
                 continue;
             }
+
             if (machine.name === 'glass') {
                 if (this.corrupted) {
                     machine.corrupted = true;

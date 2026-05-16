@@ -15,6 +15,8 @@ export default class portal extends MachineBase {
         this._count = 0;
         this._colorContributions = [];
         this.color = intHex(machineData?.color ?? DEFAULT_PORTAL_COLOR);
+        // expose default portal color for external clearing
+        this.DEFAULT_COLOR = intHex(DEFAULT_PORTAL_COLOR) >>> 0;
         this.corrupted = false; // whether this portal is currently corrupted (black) or not, used for visual effects and to determine if it should teleport or not
         this.spreadTime = 0; // last time we had a corruption flicker
         this.nextSpread = 1; // when the next corruption flicker should happen

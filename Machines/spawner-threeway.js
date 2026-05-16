@@ -12,6 +12,7 @@ export default class spawner extends MachineBase {
         this._acc = 0;
         this._count = 0;
         this.color = machineData.color || 0xFFFFFFFF; // default to white with full alpha
+        this.DEFAULT_COLOR = 0xFFFFFFFF >>> 0;
     }
     update(delta) {
         super.update(delta);
