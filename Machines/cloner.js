@@ -190,12 +190,6 @@ export default class cloner extends MachineBase {
                 }
                 continue;
             }
-
-            // Fallback: if machine exposes a color property, mix into it.
-            if (typeof machine.color !== 'undefined') {
-                machine.color = addHex32(machine.color, this.color);
-                if (machine.data) machine.data.color = machine.color;
-            }
         }
     }
 
